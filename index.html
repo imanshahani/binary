@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&amp;family=Lato:wght@400;700&amp;family=Fira+Code&amp;display=swap" rel="stylesheet">
     <style>
         /* =========================================
-           THEME & CORE
+           1. CORE VARIABLES
            ========================================= */
         :root {
             --bg-base: #152220;        
@@ -33,7 +33,7 @@
             font-family: var(--font-body); height: 100vh; display: flex; flex-direction: column; overflow: hidden;
         }
 
-        /* PUBLIC MODE */
+        /* PUBLIC MODE: Hides UI */
         body.public-mode .admin-ui { display: none !important; }
         body.public-mode .editable-wrapper { border: none !important; margin-bottom: 20px; }
         body.public-mode .editable-wrapper:hover { border-color: transparent; }
@@ -44,7 +44,7 @@
         }
 
         /* =========================================
-           UI & NAVIGATION
+           2. DESKTOP NAVIGATION
            ========================================= */
         header.nav-bar {
             height: var(--header-height); background: var(--panel-bg);
@@ -56,7 +56,7 @@
         .header-actions { display: flex; gap: 10px; }
 
         /* =========================================
-           LAYOUT & MANUSCRIPT
+           3. DESKTOP LAYOUT
            ========================================= */
         main.viewport { flex-grow: 1; position: relative; z-index: 10; display: flex; overflow: hidden; }
 
@@ -86,7 +86,7 @@
         }
 
         /* =========================================
-           EDITOR BLOCKS
+           4. EDITOR BLOCKS
            ========================================= */
         .editable-wrapper {
             position: relative; margin-bottom: 40px; padding: 20px;
@@ -128,7 +128,6 @@
         .btn-danger { border-color: var(--danger); color: var(--danger); }
         .btn-danger:hover { background: var(--danger); color: #000; }
         
-        /* New Group Styling for visual clarity */
         .btn-group { display:flex; gap:2px; border-right:1px solid #333; padding-right:5px; margin-right:5px; }
         .btn-group:last-child { border:none; }
 
@@ -138,21 +137,58 @@
             background: #000; margin: 20px 0; position: relative;
         }
         .tool-frame iframe { width: 100%; height: 100%; border: none; }
+        
         .tool-label { 
             position: absolute; top: -25px; left: 0; 
             font-family: var(--font-mono); font-size: 0.8rem; color: var(--teal-bright); 
         }
+        
+        /* The Mobile-Only "Open Fullscreen" button injected by JS */
+        .mobile-popout {
+            display: none; /* Hidden on desktop */
+            text-align: center; margin-bottom: 5px;
+        }
+        .mobile-popout a {
+            display: inline-block; padding: 8px 16px; background: var(--teal-core); 
+            color: #fff; text-decoration: none; border-radius: 4px; font-size: 0.9rem;
+            border: 1px solid var(--gold-main);
+        }
+
         body.public-mode .tool-label { display: none; }
 
         /* =========================================
-           MOBILE
+           5. MOBILE OVERRIDES (Responsive)
            ========================================= */
         @media (max-width: 900px) {
             main.viewport { flex-direction: column; }
+            
+            /* Sidebar becomes a top bar or hidden menu */
             .sidebar { width: 100%; height: auto; border-bottom: 1px solid var(--gold-main); }
             .toc-content { display: none; }
             .sidebar.mobile-open .toc-content { display: block; max-height: 40vh; }
-            .manuscript { padding: 30px 15px; border: none; }
+            
+            /* Manuscript Edge-to-Edge */
+            .manuscript { 
+                padding: 40px 15px; /* Minimal padding */
+                border: none; 
+                box-shadow: none; 
+                max-width: 100%;
+            }
+
+            /* Tool Frame Expansion */
+            .tool-frame {
+                width: 100vw; /* Force full screen width */
+                margin-left: -15px; /* Pull back to edge */
+                height: 500px;
+                border-left: none; 
+                border-right: none;
+            }
+
+            /* Show Popout Button */
+            .mobile-popout { display: block; }
+            
+            /* Hide Canvas on Mobile for performance/clarity */
+            #persianCanvas { display: none; }
         }
     </style>
 </head>
@@ -164,7 +200,7 @@
         <div class="brand">The Binary Codex</div>
         
         <div class="header-actions admin-ui">
-            <button class="btn" onclick="addBlock('chapter', null)">+ Chap (End)</button>
+            <button class="btn" onclick="addBlock('chapter', null)">+ Chap</button>
             <button class="btn" onclick="saveData()">💾 Save</button>
             <button class="btn btn-primary" onclick="exportPublicReader()">🚀 Bake Public</button>
         </div>
@@ -1280,7 +1316,7 @@ governed by either Binary Resonance (P/C/Q-Leaves) or Prime Harmonic Resonance
                 
                 const headerTag = block.type === 'chapter' ? 'h1' : 'h2';
                 
-                // Toolbar with organized groups and Insert Below buttons
+                // Toolbar
                 const toolbar = `
                     <div class="toolbar admin-ui">
                         <div class="btn-group">
@@ -1304,9 +1340,28 @@ governed by either Binary Resonance (P/C/Q-Leaves) or Prime Harmonic Resonance
                         </div>
                     </div>`;
 
+                // Handle Mobile Tool Injection Logic
+                let contentHTML = block.content;
+                
+                // Inject "Open Fullscreen" buttons above iframes dynamically
+                // This is purely visual and happens on render
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = contentHTML;
+                const tools = tempDiv.querySelectorAll('iframe');
+                tools.forEach(iframe => {
+                    const src = iframe.getAttribute('src');
+                    if(src) {
+                        const popout = document.createElement('div');
+                        popout.className = 'mobile-popout';
+                        popout.innerHTML = `<a href="${src}" target="_blank">⇱ Open Tool Fullscreen</a>`;
+                        iframe.parentElement.insertBefore(popout, iframe);
+                    }
+                });
+                contentHTML = tempDiv.innerHTML;
+
                 wrapper.innerHTML = toolbar +
                     `<${headerTag} class="block-title" contenteditable="false">${block.title}</${headerTag}>` +
-                    `<div class="content-body" contenteditable="false">${block.content}</div>`;
+                    `<div class="content-body" contenteditable="false">${contentHTML}</div>`;
 
                 ms.appendChild(wrapper);
 
@@ -1331,7 +1386,7 @@ governed by either Binary Resonance (P/C/Q-Leaves) or Prime Harmonic Resonance
         }
 
         /* =========================================
-           3. EDITING FUNCTIONS (Updated)
+           3. EDITING FUNCTIONS
            ========================================= */
         function toggleEdit(btn) {
             const wrapper = btn.closest('.editable-wrapper');
@@ -1353,7 +1408,6 @@ governed by either Binary Resonance (P/C/Q-Leaves) or Prime Harmonic Resonance
             }
         }
 
-        // --- CONTEXTUAL ADD BLOCK ---
         function addBlock(type, relativeBtn) {
             const newBlock = {
                 id: 'b-' + Date.now(),
@@ -1363,20 +1417,15 @@ governed by either Binary Resonance (P/C/Q-Leaves) or Prime Harmonic Resonance
             };
 
             if (relativeBtn) {
-                // Insert AFTER the current block
                 const wrapper = relativeBtn.closest('.editable-wrapper');
                 const index = appState.findIndex(b => b.id === wrapper.id);
-                if (index !== -1) {
-                    appState.splice(index + 1, 0, newBlock);
-                }
+                if (index !== -1) appState.splice(index + 1, 0, newBlock);
             } else {
-                // Push to end (Header Button)
                 appState.push(newBlock);
             }
 
             renderAll();
             
-            // Smart Scroll to new element
             setTimeout(() => {
                 const el = document.getElementById(newBlock.id);
                 if(el) el.scrollIntoView({behavior: 'smooth', block: 'center'});
@@ -1409,14 +1458,14 @@ governed by either Binary Resonance (P/C/Q-Leaves) or Prime Harmonic Resonance
                 id: w.id,
                 type: w.querySelector('h1') ? 'chapter' : 'sub',
                 title: w.querySelector('.block-title').innerText,
-                content: w.querySelector('.content-body').innerHTML
+                // We strip the mobile-popout buttons before saving to keep data clean
+                content: w.querySelector('.content-body').innerHTML.replace(/<div class="mobile-popout">.*?<\/div>/g, '')
             }));
         }
 
         /* =========================================
-           4. CONTENT INSERTION & TABLE LOGIC
+           4. CONTENT INSERTION
            ========================================= */
-        
         function insertLink(btn) {
             const wrapper = btn.closest('.editable-wrapper');
             if(!wrapper.classList.contains('editing')) { alert("Click 'Edit' first."); return; }
@@ -1461,15 +1510,9 @@ governed by either Binary Resonance (P/C/Q-Leaves) or Prime Harmonic Resonance
             
             if(rows && cols && !isNaN(rows) && !isNaN(cols)) {
                 let html = '<table style="width:100%; border-collapse:collapse; margin:20px 0; border:1px solid #3F5E59;">';
-                
-                // Header
                 html += '<tr>';
-                for(let j=0; j<cols; j++) {
-                    html += `<td style="background:rgba(63,94,89,0.2); font-weight:bold; padding:10px; border:1px solid #3F5E59;">Header</td>`;
-                }
+                for(let j=0; j<cols; j++) html += `<td style="background:rgba(63,94,89,0.2); font-weight:bold; padding:10px; border:1px solid #3F5E59;">Header</td>`;
                 html += '</tr>';
-
-                // Body
                 for(let i=0; i<rows-1; i++) {
                     html += '<tr>';
                     for(let j=0; j<cols; j++) html += `<td style="padding:10px; border:1px solid #3F5E59;">Cell</td>`;
@@ -1489,9 +1532,7 @@ governed by either Binary Resonance (P/C/Q-Leaves) or Prime Harmonic Resonance
                 let node = selection.anchorNode;
                 while(node && node !== wrapper) {
                     if(node.nodeName === 'TABLE') {
-                        if(confirm("Remove this table?")) {
-                            node.remove();
-                        }
+                        if(confirm("Remove this table?")) node.remove();
                         return;
                     }
                     node = node.parentNode;
@@ -1522,6 +1563,10 @@ governed by either Binary Resonance (P/C/Q-Leaves) or Prime Harmonic Resonance
         function exportPublicReader() {
             updateStateFromDOM();
             let html = document.documentElement.outerHTML;
+            
+            // Clean up temporary mobile buttons before baking if they exist in DOM
+            html = html.replace(/<div class="mobile-popout">.*?<\/div>/g, '');
+
             const bakedData = `<script>const CODEX_DATA = ${JSON.stringify(appState)};<\/script>`;
             html = html.replace(/<script id="data-script" src="codex-data.js"><\/script>/, bakedData);
             html = html.replace('<body>', '<body class="public-mode">');
