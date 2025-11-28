@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integrated Binary Analysis Tool</title>
+    
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.164.1/build/three.module.js" } }
+    </script>
+    
+    <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
+
+    <style>
+        /* --- GLOBAL STYLES & LAYOUT --- */
+        :root {
+            --bg-color: #f8f9fa;
+            --text-color: #333;
+            --primary-color: #4CAF50;
+            --secondary-color: #2c3e50;
+            --tertiary-color: #5c6bc0;
+            --light-grey: #ced4da;
+            --white: #fff;
+            --shadow-light: rgba(0, 0, 0, 0.1);
+            --shadow-dark: rgba(0, 0, 0, 0.4);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        h1, h2 {
+            color: var(--secondary-color);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* --- CONTROL PANEL & TABS --- */
+        .main-controls {
+            background-color: var(--white);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px var(--shadow-light);
+            margin-bottom: 20px;
+        }
+
+        .control-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            align-items: flex-end;
+            margin-bottom: 20px;
+        }
+        
+        .control-group { display: flex; flex-direction: column; }
+        
+        label { margin-bottom: 8px; font-weight: 600; color: #495057; }
+        
+        input, select {
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--light-grey);
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+        
+        button {
+            padding: 12px;
+            border-radius: 6px;
+            border: none;
+            background-color: var(--primary-color);
+            color: var(--white);
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:hover:not(:disabled) {
+            background-color: #3e8e41;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 20px;
+        }
+        .tab-button {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background-color: transparent;
+            font-size: 1.1em;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab-button.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            font-weight: 600;
+        }
+        .tab-button:hover:not(.active) { color: var(--secondary-color); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+
+        /* --- NOTIFICATIONS & LEGEND --- */
+        .notification-container {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .error { color: #c62828; background-color: #ffebee; }
+        .loading { color: #0d47a1; background-color: #e3f2fd; font-style: italic; }
+
+        .legend {
+            display: flex; flex-wrap: wrap; justify-content: center;
+            gap: 10px 20px; margin-bottom: 20px; padding: 15px;
+            background-color: var(--white); border-radius: 10px;
+            box-shadow: 0 4px 6px var(--shadow-light); font-size: 14px;
+        }
+        .legend-item { display: flex; align-items: center; }
+        .legend-item .swatch {
+            display: inline-block; width: 18px; height: 18px;
+            border-radius: 4px; margin-right: 8px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        /* --- FRACTAL CLASSIFIER STYLES --- */
+        .results-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        .category {
+            background-color: var(--white); padding: 20px;
+            border-radius: 10px; box-shadow: 0 4px 6px var(--shadow-light);
+        }
+        .category-title {
+            font-size: 1.3em; font-weight: 700; margin-bottom: 15px;
+            padding-bottom: 10px; border-bottom: 2px solid #eee;
+            color: var(--secondary-color);
+        }
+        .number-list { display: flex; flex-wrap: wrap; gap: 10px; }
+        .number-item {
+            padding: 8px 15px; border-radius: 6px; cursor: pointer;
+            transition: all 0.2s; font-weight: 600; position: relative;
+        }
+        .number-item:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px var(--shadow-light);
+        }
+        .monolateral { background-color: #e3f2fd; color: #0d47a1; }
+        .bilateral-even { background-color: #c8e6c9; color: #1b5e20; }
+        .bilateral-odd { background-color: #a5d6a7; color: #2e7d32; }
+        .quadrilateral { background-color: #ffebee; color: #c62828; }
+        .full-register { background-color: #d1c4e9; color: #311b92; }
+        .tandem { background-color: #b2ebf2; }
+        .standard { background-color: #ffccbc; }
+        .contra { background-color: #f8bbd0; }
+        .bilateral-filter { margin-top: 10px; display: flex; gap: 10px; }
+        .active-filter { background-color: #3e8e41; }
+
+        /* --- COMPLEMENT TREE STYLES --- */
+        #network {
+            width: 100%;
+            height: 80vh;
+            border: 1px solid var(--light-grey);
+            border-radius: 8px;
+            background-color: #fff;
+        }
+        .tree-info {
+            text-align: center; margin-bottom: 15px;
+            color: #555; font-style: italic;
+        }
+        
+        /* --- MODAL STYLES --- */
+        .sequence-modal {
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 100; justify-content: center; align-items: flex-start;
+            padding: 5vh 20px 20px 20px; box-sizing: border-box;
+            overflow-y: auto; scrollbar-gutter: stable;
+        }
+        .sequence-modal-content {
+            background-color: var(--white); padding: 25px;
+            border-radius: 12px; max-width: 1000px;
+            width: 95%; box-shadow: 0 4px 20px var(--shadow-dark);
+            position: relative;
+        }
+        #modalLayout { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        .close-modal {
+            position: absolute; top: 10px; right: 15px;
+            font-size: 2em; font-weight: bold; color: #aaa;
+            cursor: pointer; line-height: 1; border: none;
+            background: transparent; padding: 5px;
+        }
+        .close-modal:hover { color: #333; transform: none; }
+        .sequence-modal-title {
+            font-size: 1.5em; font-weight: 700; margin-bottom: 0;
+            color: var(--secondary-color); grid-column: 1 / -1;
+            text-align: center;
+        }
+        #modalNavigation {
+            grid-column: 1 / -1; display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px; margin: 15px 0;
+        }
+        #modalNavigation button { background-color: var(--tertiary-color); font-size: 14px; padding: 10px; }
+        #modalNavigation button:not(:disabled):hover { background-color: #3f51b5; }
+        .modal-fractal-container {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px; margin-top: 20px;
+        }
+        .modal-fractal {
+            background-color: var(--bg-color); padding: 10px;
+            border-radius: 8px; box-shadow: 0 2px 4px var(--shadow-light);
+        }
+        .modal-fractal-title { font-weight: 600; margin-bottom: 8px; color: var(--secondary-color); font-size: 14px; }
+        .fractal-grid { display: inline-grid; gap: 1px; border: 1px solid #ccc; }
+        .fractal-cell { background-color: var(--secondary-color); }
+        .fractal-cell-1 { background-color: var(--white); }
+        .modal-binary-display { font-family: 'Courier New', monospace; word-break: break-all; margin: 3px 0; font-size: 12px; }
+        .modal-decimal-display { font-family: 'Courier New', monospace; color: #666; font-size: 12px; }
+        .number-stats { background-color: #f0f8ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; }
+        .stat-row { display: flex; margin-bottom: 5px; }
+        .stat-label { font-weight: 600; min-width: 120px; }
+        .stat-value { font-family: 'Courier New', monospace; }
+        
+        /* --- SPHERE VIEWER STYLES --- */
+        #modalSpherePanel h2 { font-size: 1.3em; margin-bottom: 10px; }
+        .sphere-views-container {
+            display: flex; justify-content: space-around;
+            font-weight: 600; color: #555; margin-bottom: 5px;
+        }
+        #canvas-container {
+            position: relative; width: 100%; padding-bottom: 50%;
+            border-radius: 8px; overflow: hidden;
+            background: #000; cursor: grab;
+        }
+        #canvas-container:active { cursor: grabbing; }
+        #sphereCanvas {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+        #sphereMessage { margin-top: 1rem; color: #555; font-size: 0.9em; text-align: center; }
+
+        /* --- TOOLTIP --- */
+        #fractalTooltip {
+            display: none; position: fixed; background: var(--white);
+            border: 1px solid #ddd; border-radius: 8px;
+            box-shadow: 0 4px 12px var(--shadow-light);
+            padding: 8px; z-index: 200; pointer-events: none;
+        }
+        
+        /* --- RESPONSIVE DESIGN --- */
+        @media (max-width: 900px) {
+            #modalLayout { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .control-panel, .results-container { grid-template-columns: 1fr; }
+            .stat-row { flex-direction: column; }
+            .stat-label { margin-bottom: 3px; }
+            #fractalTooltip { display: none !important; }
+            #modalNavigation { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Integrated Binary Analysis Tool</h1>
+    
+    <div class="main-controls">
+        <div class="control-panel">
+            <div class="control-group">
+                <label for="startRange">Start Range:</label>
+                <input type="number" id="startRange" min="0" value="0">
+            </div>
+            <div class="control-group">
+                <label for="endRange">End Range:</label>
+                <input type="number" id="endRange" min="1" value="50">
+            </div>
+            <div class="control-group">
+                <label for="bitLength">Bit Length (for Classifier):</label>
+                <select id="bitLength">
+                    <option value="any">Any Length</option>
+                    <option value="3">3-bit</option>
+                    <option value="5">5-bit</option>
+                    <option value="7">7-bit</option>
+                    <option value="8">8-bit</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <button id="generateBtn">Generate & Classify</button>
+            </div>
+        </div>
+        <div id="notificationContainer" class="notification-container"></div>
+    </div>
+
+    <div class="tabs">
+        <button id="tab-classifier" class="tab-button active">Fractal Classifier</button>
+        <button id="tab-tree" class="tab-button">Complement Tree</button>
+    </div>
+
+    <div id="content-classifier" class="tab-content active">
+        <div class="legend">
+            <div class="legend-item"><span class="swatch monolateral"></span>Monolateral</div>
+            <div class="legend-item"><span class="swatch bilateral-even"></span>Bilateral (Even)</div>
+            <div class="legend-item"><span class="swatch bilateral-odd"></span>Bilateral (Odd)</div>
+            <div class="legend-item"><span class="swatch quadrilateral"></span>Quadrilateral</div>
+            <div class="legend-item"><span class="swatch full-register"></span><span id="fullRegisterLegend">Full Register</span></div>
+            <div class="legend-item"><span class="swatch tandem"></span><span id="tandemLegend">Tandem</span></div>
+            <div class="legend-item"><span class="swatch standard"></span><span id="standardLegend">Standard</span></div>
+            <div class="legend-item"><span class="swatch contra"></span><span id="contraLegend">Contra</span></div>
+        </div>
+
+        <div class="results-container">
+            <div class="category">
+                <div class="category-title" id="monolateralTitle">Monolateral (1 unique rotation)</div>
+                <div id="monolateralList" class="number-list"></div>
+            </div>
+            <div class="category">
+                <div class="category-title"><span id="bilateralTitle">Bilateral (2 unique rotations)</span>
+                    <div class="bilateral-filter">
+                        <button id="allBilateralBtn" class="active-filter">All</button>
+                        <button id="evenBilateralBtn">Even</button>
+                        <button id="oddBilateralBtn">Odd</button>
+                    </div>
+                </div>
+                <div id="bilateralList" class="number-list"></div>
+            </div>
+            <div class="category">
+                <div class="category-title" id="quadrilateralTitle">Quadrilateral (4 unique rotations)</div>
+                <div id="quadrilateralList" class="number-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="content-tree" class="tab-content">
+        <div class="tree-info">
+           Numbers are grouped into families based on their path to 0 (cool colors) or 1 (warm colors). Click any node for details.
+        </div>
+        <div id="network"></div>
+    </div>
+
+
+    <div class="sequence-modal" id="sequenceModal">
+        <div class="sequence-modal-content">
+            <button class="close-modal" id="closeModal" aria-label="Close modal">&times;</button>
+            <div id="modalLayout">
+                <div class="sequence-modal-title" id="modalTitle"></div>
+                <div id="modalNavigation">
+                    <button id="prevSeqBtn">&lt; Prev</button>
+                    <button id="nextSeqBtn">Next &gt;</button>
+                    <button id="prevCatBtn">&lt; Prev in Cat.</button>
+                    <button id="nextCatBtn">Next in Cat. &gt;</button>
+                    <button id="focusNodeBtn">Focus in Tree</button>
+                </div>
+                <div id="modalInfoPanel">
+                    <div id="modalContent"></div>
+                </div>
+                <div id="modalSpherePanel">
+                    <h2>Spherical Projection</h2>
+                    <div class="sphere-views-container">
+                        <div>Front View</div>
+                        <div>Back View</div>
+                    </div>
+                    <div id="canvas-container">
+                        <canvas id="sphereCanvas"></canvas>
+                    </div>
+                    <div id="sphereMessage">Drag the sphere to rotate it.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="fractalTooltip"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- CONFIGURATION CONSTANTS ---
+        const MAX_NUMBER_LIMIT = 32767;
+        const PROCESSING_WARNING_THRESHOLD = 2000;
+
+        // --- APPLICATION STATE ---
+        const AppState = {
+            fullResults: [],
+            numberCache: new Map(),
+            bilateralNumbers: [],
+            currentBilateralFilter: 'all',
+            currentModalResult: null,
+            visNetwork: null
+        };
+
+        // --- DOM ELEMENTS ---
+        const generateBtn = document.getElementById('generateBtn');
+        const notificationContainer = document.getElementById('notificationContainer');
+        const fractalTooltip = document.getElementById('fractalTooltip');
+
+        // --- WEB WORKER SETUP ---
+        const workerCode = `
+            // --- FRACTAL ANALYSIS FUNCTIONS (from Script 1) ---
+            function rotateGrid(grid, angle) {
+                const size = grid.length;
+                const rotated = Array.from({ length: size }, () => Array(size));
+                for (let i = 0; i < size; i++) {
+                    for (let j = 0; j < size; j++) {
+                        if (angle === 90) rotated[i][j] = grid[size - 1 - j][i];
+                        else if (angle === 180) rotated[i][j] = grid[size - 1 - i][size - 1 - j];
+                        else if (angle === 270) rotated[i][j] = grid[j][size - 1 - i];
+                    }
+                }
+                return rotated;
+            }
+
+            function binaryGridToDecimal(grid) {
+                return parseInt(grid[0].join(''), 2);
+            }
+
+            function analyzeFractal(num) {
+                const binaryStr = num.toString(2);
+                const size = binaryStr.length;
+                
+                const grid = Array.from({ length: size }, (_, i) => 
+                    Array.from({ length: size }, (_, j) => 
+                        (parseInt(binaryStr[i]) ^ parseInt(binaryStr[j])) ? 0 : 1
+                    )
+                );
+                
+                const rotations = [
+                    { angle: "0°", grid: grid },
+                    { angle: "90°", grid: rotateGrid(grid, 90) },
+                    { angle: "180°", grid: rotateGrid(grid, 180) },
+                    { angle: "270°", grid: rotateGrid(grid, 270) }
+                ];
+                
+                const rotationValues = rotations.map(r => binaryGridToDecimal(r.grid));
+                const uniqueValues = [...new Set(rotationValues)].length;
+                const isFullRegister = (num > 0) && ((num + 1) & num) === 0;
+                let palindromicType = 'none';
+
+                if (!isFullRegister && binaryStr.length > 1 && binaryStr.length % 2 === 0) {
+                    const mid = binaryStr.length / 2;
+                    const firstHalf = binaryStr.substring(0, mid);
+                    const secondHalf = binaryStr.substring(mid);
+                    const reversedFirst = firstHalf.split('').reverse().join('');
+
+                    if (secondHalf === firstHalf) palindromicType = 'tandem';
+                    else if (secondHalf === reversedFirst) palindromicType = 'standard';
+                    else {
+                        const invertedReversedFirst = reversedFirst.split('').map(b => b === '1' ? '0' : '1').join('');
+                        if (secondHalf === invertedReversedFirst) palindromicType = 'contra';
+                    }
+                }
+                
+                return {
+                    rotations,
+                    rotationValues,
+                    uniqueRotations: uniqueValues,
+                    baseGrid: grid,
+                    palindromicType,
+                    isFullRegister
+                };
+            }
+
+            // --- COMPLEMENT SEQUENCE FUNCTION (from Script 2) ---
+            function getComplement(n) {
+                if (n === 0) return 0;
+                const k = n.toString(2).length;
+                return (1 << k) - 1 - n;
+            }
+
+            // --- WORKER MAIN LOGIC ---
+            self.onmessage = function(e) {
+                const { start, end, bitLength } = e.data;
+                const results = [];
+                for (let num = start; num <= end; num++) {
+                    const binaryStr = num.toString(2);
+                    if (bitLength !== "any" && binaryStr.length != bitLength) {
+                        continue;
+                    }
+
+                    const fractalData = analyzeFractal(num);
+                    const complementNext = getComplement(num);
+
+                    results.push({
+                        number: num,
+                        binary: binaryStr,
+                        complementNext: complementNext,
+                        ...fractalData
+                    });
+                }
+                self.postMessage(results);
+            };
+        `;
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const worker = new Worker(URL.createObjectURL(blob));
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            generateAndClassify();
+        });
+
+        // --- EVENT LISTENERS ---
+        function setupEventListeners() {
+            generateBtn.addEventListener('click', generateAndClassify);
+
+            // Tab Controls
+            document.getElementById('tab-classifier').addEventListener('click', () => switchTab('classifier'));
+            document.getElementById('tab-tree').addEventListener('click', () => switchTab('tree'));
+
+            // Fractal Classifier Controls
+            document.getElementById('allBilateralBtn').addEventListener('click', () => filterBilateral('all'));
+            document.getElementById('evenBilateralBtn').addEventListener('click', () => filterBilateral('even'));
+            document.getElementById('oddBilateralBtn').addEventListener('click', () => filterBilateral('odd'));
+            
+            // Modal Controls
+            const sequenceModal = document.getElementById('sequenceModal');
+            document.getElementById('closeModal').addEventListener('click', () => sequenceModal.style.display = 'none');
+            sequenceModal.addEventListener('click', e => {
+                if (e.target === sequenceModal) sequenceModal.style.display = 'none';
+            });
+            document.getElementById('prevSeqBtn').addEventListener('click', () => navigateSequential(-1));
+            document.getElementById('nextSeqBtn').addEventListener('click', () => navigateSequential(1));
+            document.getElementById('prevCatBtn').addEventListener('click', () => navigateCategory(-1));
+            document.getElementById('nextCatBtn').addEventListener('click', () => navigateCategory(1));
+            document.getElementById('focusNodeBtn').addEventListener('click', focusNodeInTree);
+        }
+
+        // --- CORE LOGIC ---
+        function generateAndClassify() {
+            const start = parseInt(document.getElementById('startRange').value);
+            const end = parseInt(document.getElementById('endRange').value);
+            const bitLength = document.getElementById('bitLength').value;
+            
+            if (!validateInputs(start, end)) return;
+
+            resetStateAndUI();
+            showNotification('loading', `Processing ${end - start + 1} numbers...`);
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Processing...';
+
+            worker.postMessage({ start, end, bitLength });
+        }
+
+        worker.onmessage = function(e) {
+            AppState.fullResults = e.data;
+            AppState.fullResults.forEach(res => AppState.numberCache.set(res.number, res));
+            
+            // --- Render Both Views ---
+            renderFractalClassifier();
+            renderComplementTree();
+
+            // --- Reset UI ---
+            notificationContainer.style.display = 'none';
+            generateBtn.disabled = false;
+            generateBtn.textContent = 'Generate & Classify';
+        };
+
+        // --- UI & NOTIFICATION FUNCTIONS ---
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+            document.getElementById(`content-${tabName}`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            if(tabName === 'tree' && AppState.visNetwork) {
+                setTimeout(() => AppState.visNetwork.fit(), 50); // Fit network after tab is visible
+            }
+        }
+
+        function validateInputs(start, end) {
+            if (isNaN(start) || isNaN(end) || start < 0 || end < start) {
+                showNotification('error', "Please enter a valid range (Start ≤ End, both ≥ 0).");
+                return false;
+            }
+            if (end > MAX_NUMBER_LIMIT) {
+                showNotification('error', `Maximum number is ${MAX_NUMBER_LIMIT}.`);
+                document.getElementById('endRange').value = MAX_NUMBER_LIMIT;
+                return false;
+            }
+            if (end - start > PROCESSING_WARNING_THRESHOLD) {
+                if(!confirm(`Range is large (${end - start + 1} numbers). Processing may take some time. Continue?`)){
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function showNotification(type, message) {
+            notificationContainer.className = `notification-container ${type}`;
+            notificationContainer.textContent = message;
+            notificationContainer.style.display = 'block';
+        }
+
+        function resetStateAndUI() {
+            AppState.fullResults = [];
+            AppState.numberCache.clear();
+            AppState.bilateralNumbers = [];
+            AppState.currentModalResult = null;
+
+            const loadingHTML = '<div class="loading">Processing...</div>';
+            document.getElementById('monolateralList').innerHTML = loadingHTML;
+            document.getElementById('bilateralList').innerHTML = loadingHTML;
+            document.getElementById('quadrilateralList').innerHTML = loadingHTML;
+            document.getElementById('network').innerHTML = '';
+            
+            // Reset category titles and legend text
+            document.getElementById('monolateralTitle').textContent = 'Monolateral (1 unique rotation)';
+            document.getElementById('bilateralTitle').textContent = 'Bilateral (2 unique rotations)';
+            document.getElementById('quadrilateralTitle').textContent = 'Quadrilateral (4 unique rotations)';
+
+            document.getElementById('allBilateralBtn').innerHTML = 'All';
+            document.getElementById('evenBilateralBtn').innerHTML = 'Even';
+            document.getElementById('oddBilateralBtn').innerHTML = 'Odd';
+
+            document.getElementById('fullRegisterLegend').textContent = 'Full Register';
+            document.getElementById('tandemLegend').textContent = 'Tandem';
+            document.getElementById('standardLegend').textContent = 'Standard';
+            document.getElementById('contraLegend').textContent = 'Contra';
+        }
+
+        // =================================================================
+        // --- FRACTAL CLASSIFIER VIEW LOGIC (Adapted from Script 1) ---
+        // =================================================================
+        function renderFractalClassifier() {
+            const totalCount = AppState.fullResults.length;
+
+            // Helper function to format the statistics string
+            const formatStat = (count, total) => {
+                if (total === 0 || count === 0) return '';
+                const percentage = (count / total * 100).toFixed(2);
+                return ` (${count} | ${percentage}%)`;
+            };
+
+            // --- Calculate counts for all categories ---
+            const monolateralNumbers = AppState.fullResults.filter(r => r.uniqueRotations === 1);
+            const bilateralNumbers = AppState.fullResults.filter(r => r.uniqueRotations === 2);
+            const quadrilateralNumbers = AppState.fullResults.filter(r => r.uniqueRotations === 4);
+            
+            const bilateralEven = bilateralNumbers.filter(item => item.number % 2 === 0);
+            const bilateralOdd = bilateralNumbers.filter(item => item.number % 2 !== 0);
+
+            const fullRegisterNumbers = AppState.fullResults.filter(r => r.isFullRegister);
+            const tandemNumbers = AppState.fullResults.filter(r => r.palindromicType === 'tandem');
+            const standardNumbers = AppState.fullResults.filter(r => r.palindromicType === 'standard');
+            const contraNumbers = AppState.fullResults.filter(r => r.palindromicType === 'contra');
+            
+            // --- Update UI with calculated proportions ---
+            // 1. Main Category Titles
+            document.getElementById('monolateralTitle').textContent = `Monolateral (1 unique rotation)${formatStat(monolateralNumbers.length, totalCount)}`;
+            document.getElementById('bilateralTitle').textContent = `Bilateral (2 unique rotations)${formatStat(bilateralNumbers.length, totalCount)}`;
+            document.getElementById('quadrilateralTitle').textContent = `Quadrilateral (4 unique rotations)${formatStat(quadrilateralNumbers.length, totalCount)}`;
+
+            // 2. Bilateral Sub-type Buttons
+            document.getElementById('allBilateralBtn').innerHTML = `All${formatStat(bilateralNumbers.length, totalCount)}`;
+            document.getElementById('evenBilateralBtn').innerHTML = `Even${formatStat(bilateralEven.length, totalCount)}`;
+            document.getElementById('oddBilateralBtn').innerHTML = `Odd${formatStat(bilateralOdd.length, totalCount)}`;
+
+            // 3. Legend Items for Special Types
+            document.getElementById('fullRegisterLegend').textContent = `Full Register${formatStat(fullRegisterNumbers.length, totalCount)}`;
+            document.getElementById('tandemLegend').textContent = `Tandem${formatStat(tandemNumbers.length, totalCount)}`;
+            document.getElementById('standardLegend').textContent = `Standard${formatStat(standardNumbers.length, totalCount)}`;
+            document.getElementById('contraLegend').textContent = `Contra${formatStat(contraNumbers.length, totalCount)}`;
+
+            // --- Call original rendering functions ---
+            AppState.bilateralNumbers = bilateralNumbers; // Store for filtering
+            filterBilateral('all');
+            updateFractalDisplay('monolateral');
+            updateFractalDisplay('quadrilateral');
+        }
+
+        function filterBilateral(filterType) {
+            AppState.currentBilateralFilter = filterType;
+            ['allBilateralBtn', 'evenBilateralBtn', 'oddBilateralBtn'].forEach(id => {
+                 document.getElementById(id).classList.remove('active-filter');
+            });
+            document.getElementById(`${filterType}BilateralBtn`).classList.add('active-filter');
+            updateFractalDisplay('bilateral');
+        }
+
+        function updateFractalDisplay(category) {
+            let numbersToDisplay = [];
+            if (category === 'monolateral') {
+                numbersToDisplay = AppState.fullResults.filter(r => r.uniqueRotations === 1);
+            } else if (category === 'bilateral') {
+                if (AppState.currentBilateralFilter === 'even') numbersToDisplay = AppState.bilateralNumbers.filter(item => item.number % 2 === 0);
+                else if (AppState.currentBilateralFilter === 'odd') numbersToDisplay = AppState.bilateralNumbers.filter(item => item.number % 2 !== 0);
+                else numbersToDisplay = AppState.bilateralNumbers;
+            } else if (category === 'quadrilateral') {
+                numbersToDisplay = AppState.fullResults.filter(r => r.uniqueRotations === 4);
+            }
+            displayNumberList(numbersToDisplay, `${category}List`, category);
+        }
+
+        function displayNumberList(numberResults, elementId, category) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = numberResults.length === 0 ? '<div class="loading">No numbers found</div>' : '';
+
+            const fragment = document.createDocumentFragment();
+            numberResults.forEach(item => {
+                const numberItem = document.createElement('div');
+                numberItem.className = 'number-item';
+                
+                if (item.isFullRegister) numberItem.classList.add('full-register');
+                else if (item.palindromicType !== 'none') {
+                    numberItem.classList.add(item.palindromicType);
+                    if (category === 'bilateral') numberItem.classList.add(item.number % 2 === 0 ? 'bilateral-even' : 'bilateral-odd');
+                } else {
+                    if (category === 'bilateral') numberItem.classList.add(item.number % 2 === 0 ? 'bilateral-even' : 'bilateral-odd');
+                    else numberItem.classList.add(category);
+                }
+
+                numberItem.textContent = item.number;
+                numberItem.addEventListener('click', () => showNumberInfoModal(item));
+
+                numberItem.addEventListener('mouseover', () => {
+                    fractalTooltip.innerHTML = '';
+                    fractalTooltip.appendChild(createFractalGrid(item.baseGrid, 8));
+                    fractalTooltip.style.display = 'block';
+                });
+                numberItem.addEventListener('mouseleave', () => { fractalTooltip.style.display = 'none'; });
+                numberItem.addEventListener('mousemove', e => {
+                    fractalTooltip.style.left = `${e.clientX + 15}px`;
+                    fractalTooltip.style.top = `${e.clientY + 15}px`;
+                });
+                fragment.appendChild(numberItem);
+            });
+            container.appendChild(fragment);
+        }
+
+        function createFractalGrid(gridData, cellSize) {
+            const gridDiv = document.createElement('div');
+            gridDiv.className = 'fractal-grid';
+            gridDiv.style.gridTemplateColumns = `repeat(${gridData.length}, ${cellSize}px)`;
+            
+            gridData.flat().forEach(cell => {
+                const cellDiv = document.createElement('div');
+                cellDiv.className = `fractal-cell fractal-cell-${cell}`;
+                cellDiv.style.width = `${cellSize}px`;
+                cellDiv.style.height = `${cellSize}px`;
+                gridDiv.appendChild(cellDiv);
+            });
+            return gridDiv;
+        }
+
+        // =================================================================
+        // --- COMPLEMENT TREE VIEW LOGIC (MODIFIED) ---
+        // =================================================================
+        function renderComplementTree() {
+            const start = parseInt(document.getElementById('startRange').value);
+            const end = parseInt(document.getElementById('endRange').value);
+
+            // 1. Process Data for Graph
+            const allNodeIds = new Set();
+            const edges = [];
+            AppState.fullResults.forEach(res => {
+                allNodeIds.add(res.number);
+                if (res.complementNext >= start && res.complementNext <= end) {
+                    allNodeIds.add(res.complementNext);
+                    edges.push({ from: res.number, to: res.complementNext, bits: res.binary.length });
+                }
+            });
+            if (start <= 0 && end >= 0) allNodeIds.add(0);
+            if (start <= 1 && end >= 1) allNodeIds.add(1);
+
+            const { nodeToFamilyRoot, zeroRoots, oneRoots, allFamilyRoots } = assignNodesToFamilies(allNodeIds, start, end);
+
+            // Add edges from family roots to 0 or 1 to structure the graph
+            zeroRoots.forEach(root => {
+                if (allNodeIds.has(0)) edges.push({ from: root, to: 0, bits: root.toString(2).length, type: 'family-link' });
+            });
+            oneRoots.forEach(root => {
+                if (allNodeIds.has(1)) edges.push({ from: root, to: 1, bits: root.toString(2).length, type: 'family-link' });
+            });
+
+            // 2. Create Vis.js Nodes and Edges
+            const { nodes, visEdges } = createVisElements(allNodeIds, edges, nodeToFamilyRoot, zeroRoots, oneRoots, allFamilyRoots);
+
+            // 3. Render Network
+            const container = document.getElementById("network");
+            const data = { nodes, edges: visEdges };
+            const options = getVisOptions(nodes.length);
+            
+            AppState.visNetwork = new vis.Network(container, data, options);
+            
+            // 4. Add Event Listeners
+            AppState.visNetwork.on("click", (params) => {
+                if (params.nodes.length > 0) {
+                    const clickedNodeId = params.nodes[0];
+                    const nodeData = AppState.numberCache.get(clickedNodeId);
+                    if (nodeData) {
+                        showNumberInfoModal(nodeData);
+                    }
+                }
+            });
+        }
+        
+        function findAllFamilyRoots() {
+            const zeroRoots = new Set();
+            const oneRoots = new Set();
+            for (const res of AppState.fullResults) {
+                if (res.complementNext === 0) zeroRoots.add(res.number);
+                else if (res.complementNext === 1) oneRoots.add(res.number);
+            }
+            return { zeroRoots, oneRoots };
+        }
+        
+        function assignNodesToFamilies(allNodeIds, start, end) {
+            const { zeroRoots, oneRoots } = findAllFamilyRoots();
+            const allFamilyRoots = new Set([...zeroRoots, ...oneRoots]);
+            const nodeToFamilyRoot = new Map();
+            const queue = [...allFamilyRoots];
+            
+            allFamilyRoots.forEach(root => nodeToFamilyRoot.set(root, root));
+
+            const reverseGraph = new Map();
+            AppState.fullResults.forEach(res => {
+                if (res.number >= start && res.number <= end && res.complementNext >= start && res.complementNext <= end) {
+                    if (!reverseGraph.has(res.complementNext)) reverseGraph.set(res.complementNext, []);
+                    reverseGraph.get(res.complementNext).push(res.number);
+                }
+            });
+
+            let head = 0;
+            while(head < queue.length) {
+                const node = queue[head++];
+                const parents = reverseGraph.get(node) || [];
+                parents.forEach(parent => {
+                    if (!nodeToFamilyRoot.has(parent)) {
+                        nodeToFamilyRoot.set(parent, nodeToFamilyRoot.get(node));
+                        queue.push(parent);
+                    }
+                });
+            }
+            return { nodeToFamilyRoot, zeroRoots, oneRoots, allFamilyRoots };
+        }
+
+        function generateBranchColors(count, hueConfig) {
+            const colors = [];
+            const { start, range } = hueConfig;
+            const goldenRatio = 0.618033988749895;
+            for (let i = 0; i < count; i++) {
+                const hue = (start + (i * goldenRatio * 360)) % 360;
+                colors.push(`hsl(${Math.floor(hue)}, 70%, 50%)`);
+            }
+            return colors;
+        }
+        
+        function createVisElements(allNodeIds, edges, nodeToFamilyRoot, zeroRoots, oneRoots, allFamilyRoots) {
+            const coolHue = { start: 180, range: 120 }; // Cyan to Magenta
+            const warmHue = { start: 360, range: 120 }; // Red to Green
+            const warmColors = generateBranchColors(oneRoots.size, warmHue);
+            const coolColors = generateBranchColors(zeroRoots.size, coolHue);
+            
+            const oneRootColorMap = new Map();
+            Array.from(oneRoots).sort((a, b) => a - b).forEach((root, index) => {
+                oneRootColorMap.set(root, warmColors[index % warmColors.length]);
+            });
+            const zeroRootColorMap = new Map();
+            Array.from(zeroRoots).sort((a, b) => a - b).forEach((root, index) => {
+                zeroRootColorMap.set(root, coolColors[index % coolColors.length]);
+            });
+
+            const nodes = new vis.DataSet();
+            allNodeIds.forEach(nodeId => {
+                const familyRoot = nodeToFamilyRoot.get(nodeId);
+                let color, superFamily;
+                if (familyRoot && oneRoots.has(familyRoot)) {
+                    color = oneRootColorMap.get(familyRoot);
+                    superFamily = 'One';
+                } else if (familyRoot && zeroRoots.has(familyRoot)) {
+                    color = zeroRootColorMap.get(familyRoot);
+                    superFamily = 'Zero';
+                } else {
+                    color = '#808080';
+                    superFamily = 'Unknown';
+                }
+                
+                const isFamilyRoot = allFamilyRoots.has(nodeId);
+                
+                if (nodeId === 0 || nodeId === 1) {
+                    nodes.add({
+                        id: nodeId,
+                        label: `${nodeId}`,
+                        title: `Super-Family Root: ${nodeId}`,
+                        color: nodeId === 0 ? '#3498db' : '#e74c3c',
+                        shape: 'circle',
+                        size: 30,
+                        font: { color: '#ffffff', size: 24, strokeWidth: 2, strokeColor: '#2c3e50' },
+                        mass: 8,
+                        x: nodeId === 0 ? -800 : 800,
+                        y: 0,
+                        fixed: { x: true, y: true }
+                    });
+                } else {
+                    nodes.add({
+                        id: nodeId, label: `${nodeId}`,
+                        title: `Node: ${nodeId}\nBinary: ${nodeId.toString(2)}\nFamily Root: ${familyRoot || 'N/A'}\nSuper-Family: ${superFamily}`,
+                        color: { background: color, border: color, highlight: { background: color, border: '#000' } },
+                        shape: isFamilyRoot ? "box" : "circle",
+                        font: { color: '#fff' }, mass: isFamilyRoot ? 3 : 1,
+                    });
+                }
+            });
+
+            const visEdges = new vis.DataSet(edges.map(edge => {
+                const fromFamilyRoot = nodeToFamilyRoot.get(edge.from);
+                let edgeColor = '#cccccc';
+                if (fromFamilyRoot) {
+                    edgeColor = oneRootColorMap.get(fromFamilyRoot) || zeroRootColorMap.get(fromFamilyRoot);
+                }
+                
+                return {
+                    from: edge.from, to: edge.to,
+                    label: edge.type === 'family-link' ? '' : `C${edge.bits}`,
+                    arrows: "to", color: { color: edgeColor, highlight: edgeColor },
+                    dashes: edge.type === 'family-link',
+                    smooth: { type: 'continuous' }
+                };
+            }));
+
+            return { nodes, visEdges };
+        }
+
+        function getVisOptions(nodeCount) {
+             return {
+                layout: { improvedLayout: true },
+                physics: {
+                    enabled: true,
+                    stabilization: { iterations: 200, fit: true },
+                    barnesHut: {
+                        gravitationalConstant: -20000,
+                        centralGravity: 0.01, springLength: 150,
+                        springConstant: 0.05, damping: 0.2, avoidOverlap: 0.75
+                    },
+                    solver: 'barnesHut',
+                },
+                nodes: { font: { size: Math.max(10, 16 - Math.log2(nodeCount || 1)) } },
+                edges: { font: { align: 'middle' }, smooth: { type: 'continuous' } },
+                interaction: { tooltipDelay: 200, hover: true }
+            };
+        }
+        
+        // =================================================================
+        // --- MODAL & NAVIGATION LOGIC (Shared) ---
+        // =================================================================
+        function showNumberInfoModal(result) {
+            if (!isThreeJSInitialized) initThreeJS();
+
+            AppState.currentModalResult = result;
+            const symmetryName = getSymmetryType(result.uniqueRotations);
+            const typeName = getFractalTypeName(result);
+            document.getElementById('modalTitle').textContent = `Number ${result.number}${typeName ? ` - ${typeName}` : ''} (${symmetryName})`;
+            
+            const modalContent = document.getElementById('modalContent');
+            modalContent.innerHTML = `
+                <div class="number-stats">
+                    <div class="stat-row"><span class="stat-label">Binary:</span><span class="stat-value">${result.binary}</span></div>
+                    <div class="stat-row"><span class="stat-label">Symmetry:</span><span class="stat-value">${symmetryName}</span></div>
+                    ${typeName ? `<div class="stat-row"><span class="stat-label">Fractal Type:</span><span class="stat-value">${typeName}</span></div>` : ''}
+                    <div class="stat-row"><span class="stat-label">Bit Length:</span><span class="stat-value">${result.binary.length}</span></div>
+                    <div class="stat-row"><span class="stat-label">Complement:</span><span class="stat-value">${result.complementNext}</span></div>
+                </div>
+            `;
+
+            const fractalContainer = document.createElement('div');
+            fractalContainer.className = 'modal-fractal-container';
+            result.rotations.forEach(rotation => {
+                const fractalDiv = document.createElement('div');
+                fractalDiv.className = 'modal-fractal';
+                const decimalValue = parseInt(rotation.grid[0].join(''), 2);
+                fractalDiv.innerHTML = `
+                    <div class="modal-fractal-title">Rotation: ${rotation.angle}</div>
+                    <div class="modal-binary-display">Top: ${rotation.grid[0].join('')}</div>
+                    <div class="modal-decimal-display">Decimal: ${decimalValue}</div>
+                `;
+                fractalDiv.appendChild(createFractalGrid(rotation.grid, 10));
+                fractalContainer.appendChild(fractalDiv);
+            });
+            modalContent.appendChild(fractalContainer);
+
+            updateNavButtonStates();
+
+            const gridCanvas = generateGridCanvas(result.baseGrid);
+            createProjectedTexture(gridCanvas);
+            
+            document.getElementById('sequenceModal').style.display = 'flex';
+            resizeThreeJS(); // Ensure canvas is correctly sized when modal opens
+        }
+
+        function getSymmetryType(uniqueRotations) {
+            return {1: "Monolateral", 2: "Bilateral", 4: "Quadrilateral"}[uniqueRotations] || "Unknown";
+        }
+        function getFractalTypeName(result) {
+            if (result.isFullRegister) return "Full Register";
+            if (result.palindromicType === 'none') return "";
+            return result.palindromicType.charAt(0).toUpperCase() + result.palindromicType.slice(1);
+        }
+
+        function updateNavButtonStates() {
+            if (!AppState.currentModalResult) return;
+            const currentNumber = AppState.currentModalResult.number;
+            document.getElementById('prevSeqBtn').disabled = !AppState.numberCache.has(currentNumber - 1);
+            document.getElementById('nextSeqBtn').disabled = !AppState.numberCache.has(currentNumber + 1);
+            
+            const categoryNumbers = AppState.fullResults.filter(r => r.uniqueRotations === AppState.currentModalResult.uniqueRotations).map(r => r.number).sort((a, b) => a - b);
+            const currentIndex = categoryNumbers.indexOf(currentNumber);
+            document.getElementById('prevCatBtn').disabled = (currentIndex <= 0);
+            document.getElementById('nextCatBtn').disabled = (currentIndex >= categoryNumbers.length - 1);
+        }
+
+        function navigateSequential(direction) {
+            if (!AppState.currentModalResult) return;
+            const nextNum = AppState.currentModalResult.number + direction;
+            if (AppState.numberCache.has(nextNum)) showNumberInfoModal(AppState.numberCache.get(nextNum));
+        }
+
+        function navigateCategory(direction) {
+            if (!AppState.currentModalResult) return;
+            const categoryNumbers = AppState.fullResults.filter(r => r.uniqueRotations === AppState.currentModalResult.uniqueRotations).map(r => r.number).sort((a, b) => a - b);
+            const currentIndex = categoryNumbers.indexOf(AppState.currentModalResult.number);
+            const nextIndex = currentIndex + direction;
+            if (nextIndex >= 0 && nextIndex < categoryNumbers.length) {
+                showNumberInfoModal(AppState.numberCache.get(categoryNumbers[nextIndex]));
+            }
+        }
+        
+        function focusNodeInTree() {
+            if (!AppState.currentModalResult || !AppState.visNetwork) return;
+            
+            // Switch to tree tab
+            switchTab('tree');
+            
+            // Focus on the node
+            const nodeId = AppState.currentModalResult.number;
+            AppState.visNetwork.focus(nodeId, {
+                scale: 1.5,
+                animation: { duration: 1000, easingFunction: 'easeInOutQuad' }
+            });
+        }
+        
+        // =================================================================
+        // --- 3D SPHERE VIEWER LOGIC (from Script 1) ---
+        // =================================================================
+        let threeScene, threeCamera1, threeCamera2, threeRenderer, threeSphere, threeContainer;
+        let isThreeJSInitialized = false;
+
+        function initThreeJS() {
+            threeContainer = document.getElementById('canvas-container');
+            const canvas = document.getElementById('sphereCanvas');
+            
+            threeScene = new THREE.Scene();
+
+            const frustumSize = 4;
+            const aspect = (threeContainer.clientWidth / 2) / threeContainer.clientHeight;
+            threeCamera1 = new THREE.OrthographicCamera(frustumSize * aspect / -2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / -2, 0.1, 1000);
+            threeCamera1.position.z = 5;
+
+            threeCamera2 = threeCamera1.clone();
+            threeCamera2.position.z = -5;
+            threeCamera2.lookAt(0, 0, 0);
+
+            threeRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            threeRenderer.setClearColor(0x000000, 0);
+            threeRenderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+            threeRenderer.setScissorTest(true);
+            
+            threeScene.add(new THREE.AmbientLight(0xffffff, 1.5));
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 2.0);
+            directionalLight.position.set(5, 5, 5);
+            threeScene.add(directionalLight);
+
+            const geometry = new THREE.SphereGeometry(1.5, 128, 64);
+            const material = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.7, metalness: 0.2 });
+            threeSphere = new THREE.Mesh(geometry, material);
+            threeScene.add(threeSphere);
+
+            let autoRotate = true;
+            function animate() {
+                requestAnimationFrame(animate);
+                if(autoRotate) threeSphere.rotation.y += 0.002;
+                
+                const { clientWidth, clientHeight } = threeContainer;
+                const halfWidth = clientWidth / 2;
+
+                threeRenderer.setViewport(0, 0, halfWidth, clientHeight);
+                threeRenderer.setScissor(0, 0, halfWidth, clientHeight);
+                threeRenderer.render(threeScene, threeCamera1);
+
+                threeRenderer.setViewport(halfWidth, 0, halfWidth, clientHeight);
+                threeRenderer.setScissor(halfWidth, 0, halfWidth, clientHeight);
+                threeRenderer.render(threeScene, threeCamera2);
+            }
+            animate();
+
+            let isDragging = false, previousMousePosition = { x: 0, y: 0 };
+            const startDragging = (e) => {
+                isDragging = true; autoRotate = false;
+                previousMousePosition = { x: e.clientX || e.touches[0].clientX, y: e.clientY || e.touches[0].clientY };
+            };
+            const stopDragging = () => { isDragging = false; };
+            const onDrag = (e) => {
+                if (!isDragging) return;
+                const currentPosition = { x: e.clientX || e.touches[0].clientX, y: e.clientY || e.touches[0].clientY };
+                const deltaMove = { x: currentPosition.x - previousMousePosition.x, y: currentPosition.y - previousMousePosition.y };
+                threeSphere.rotation.y += deltaMove.x * 0.005;
+                threeSphere.rotation.x += deltaMove.y * 0.005;
+                previousMousePosition = currentPosition;
+            };
+            
+            threeContainer.addEventListener('mousedown', startDragging);
+            threeContainer.addEventListener('mouseup', stopDragging);
+            threeContainer.addEventListener('mouseleave', stopDragging);
+            threeContainer.addEventListener('mousemove', onDrag);
+            threeContainer.addEventListener('touchstart', startDragging, { passive: true });
+            threeContainer.addEventListener('touchend', stopDragging);
+            threeContainer.addEventListener('touchmove', onDrag, { passive: true });
+
+            isThreeJSInitialized = true;
+        }
+
+        function resizeThreeJS() {
+            if (!isThreeJSInitialized) return;
+            const { clientWidth, clientHeight } = threeContainer;
+            threeRenderer.setSize(clientWidth, clientHeight);
+            const aspect = (clientWidth / 2) / clientHeight;
+            const frustumSize = 4;
+            [threeCamera1, threeCamera2].forEach(cam => {
+                cam.left = frustumSize * aspect / -2;
+                cam.right = frustumSize * aspect / 2;
+                cam.updateProjectionMatrix();
+            });
+        }
+        
+        function generateGridCanvas(gridData) {
+            const size = gridData.length;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.createImageData(size, size);
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    const index = (y * size + x) * 4;
+                    const color = gridData[y][x] === 1 ? 255 : 0;
+                    imageData.data[index] = imageData.data[index + 1] = imageData.data[index + 2] = color;
+                    imageData.data[index + 3] = 255;
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+            return canvas;
+        }
+
+        function createProjectedTexture(sourceCanvas) {
+            const srcWidth = sourceCanvas.width;
+            const srcCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+            const srcImageData = srcCtx.getImageData(0, 0, srcWidth, srcWidth);
+            const srcData = srcImageData.data;
+
+            const destWidth = 2048, destHeight = 1024;
+            const destCanvas = document.createElement('canvas');
+            destCanvas.width = destWidth; destCanvas.height = destHeight;
+            const destCtx = destCanvas.getContext('2d');
+            const destImageData = destCtx.createImageData(destWidth, destHeight);
+            const destData = destImageData.data;
+
+            const totalPixels = srcWidth * srcWidth;
+            const thetaBoundaries = [];
+            let cumulativePixels = 0;
+            for (let k = 0; k < 2 * srcWidth - 1; k++) {
+                const pixelsInBand = (k < srcWidth) ? k + 1 : 2 * srcWidth - 1 - k;
+                cumulativePixels += pixelsInBand;
+                thetaBoundaries.push(Math.acos(1 - 2 * (cumulativePixels / totalPixels)));
+            }
+
+            for (let y = 0; y < destHeight; y++) {
+                for (let x = 0; x < destWidth; x++) {
+                    const phi = (x / destWidth) * 2 * Math.PI;
+                    const theta = (y / destHeight) * Math.PI;
+                    const k = thetaBoundaries.findIndex(boundary => theta <= boundary);
+                    if (k === -1) continue;
+                    const numPixelsInBand = (k < srcWidth) ? k + 1 : 2 * srcWidth - 1 - k;
+                    const m = Math.floor((phi / (2 * Math.PI)) * numPixelsInBand);
+                    const startX = Math.max(0, k - (srcWidth - 1));
+                    const srcX = startX + m, srcY = k - srcX;
+                    const srcIndex = (srcY * srcWidth + srcX) * 4;
+                    const destIndex = (y * destWidth + x) * 4;
+                    
+                    if (srcIndex < srcData.length) {
+                        destData[destIndex] = srcData[srcIndex];
+                        destData[destIndex + 1] = srcData[srcIndex + 1];
+                        destData[destIndex + 2] = srcData[srcIndex + 2];
+                        destData[destIndex + 3] = srcData[srcIndex + 3];
+                    }
+                }
+            }
+            
+            destCtx.putImageData(destImageData, 0, 0);
+            const newTexture = new THREE.CanvasTexture(destCanvas);
+            newTexture.colorSpace = THREE.SRGBColorSpace;
+            newTexture.needsUpdate = true;
+            
+            if (threeSphere.material.map) threeSphere.material.map.dispose();
+
+            threeSphere.material.map = newTexture;
+            threeSphere.material.color.set(0xffffff);
+            threeSphere.material.needsUpdate = true;
+        }
+
+    </script>
+</body>
+</html>

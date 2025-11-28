@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I-Ching Interactive Simulator</title>
+    <script src="iching-data.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a69bd; --secondary-color: #1e3799;
+            --yin-color: var(--primary-color); --yang-color: var(--secondary-color);
+            --change-color: #e58e26; --highlight-color: #f6b93b;
+            --bg-color: #f7f1e3; --container-bg: #ffffff;
+            --font-color: #3d3d3d; --border-radius: 8px;
+            --transition-speed: 0.2s;
+            --nuclear-color-1: #2ecc71; --nuclear-color-2: #9b59b6;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--bg-color); color: var(--font-color);
+            line-height: 1.6; margin: 0; padding: 20px;
+        }
+        .container {
+            max-width: 1200px; margin: 0 auto; background: var(--container-bg);
+            padding: 20px 40px; border-radius: var(--border-radius);
+            box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3, h4 { color: var(--secondary-color); text-align: center; margin-top: 0; }
+        h4 { margin-bottom: 10px; }
+        .main-layout { display: grid; grid-template-columns: 350px 1fr; gap: 40px; align-items: flex-start; }
+        .controls-column { position: sticky; top: 20px; }
+        .mode-toggle { text-align: center; margin-bottom: 20px; }
+        [data-mode-content] { display: none; }
+        [data-mode-content].active { display: block; }
+        #casting-controls { display: none; }
+        #casting-controls.active { display: block; }
+
+        .hexagram-display {
+            display: flex; flex-direction: column-reverse;
+            gap: 12px;
+            padding: 20px; border: 2px solid #ddd; border-radius: var(--border-radius);
+            min-height: 344px;
+            background: #f9f9f9; justify-content: center;
+        }
+        .line-container {
+            display: flex;
+            height: 40px;
+            justify-content: center; align-items: center; position: relative;
+            transition: all var(--transition-speed) ease; border-radius: 4px;
+        }
+
+        .line-bar { background-color: var(--yang-color); height: 100%; transition: all var(--transition-speed) ease; }
+        .line-container.yang .line-bar { width: 100%; }
+        .line-container.yin { justify-content: space-between; }
+        .line-container.yin .line-bar { width: 45%; }
+        .line-container.changing::before { content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%; font-size: 1.2em; color: var(--change-color); line-height: 1; }
+        .line-container.changing.yang::before { content: 'o'; background: none; }
+        .line-container.changing.yin::before { content: 'x'; background: none; }
+        
+        .line-container.highlight-lower .line-bar,
+        .line-container.highlight-upper .line-bar { background-color: var(--highlight-color); }
+        .line-container.highlight-nuclear-1 .line-bar { background-color: var(--nuclear-color-1); }
+        .line-container.highlight-nuclear-2 .line-bar { background-color: var(--nuclear-color-2); }
+        .line-container.highlight-nuclear-1.highlight-nuclear-2 .line-bar {
+            background: linear-gradient(to right, var(--nuclear-color-1), var(--nuclear-color-2));
+        }
+        
+        .coin-toss-display { text-align: center; padding: 15px; background: #f1f2f6; border-radius: var(--border-radius); margin-bottom: 20px; min-height: 80px; }
+        .coin { display: inline-block; width: 40px; height: 40px; border-radius: 50%; margin: 0 5px; line-height: 40px; font-weight: bold; font-size: 0.9em; background-size: cover; animation: flip 0.5s ease-in-out; }
+        .coin.heads { background-color: #f6b93b; color: #fff; }
+        .coin.tails { background-color: #aaa; color: #fff; }
+        @keyframes flip { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
+        #analysis-controls button { margin: 5px; }
+        .interpretation-block { background: #f1f2f6; padding: 15px; border-radius: var(--border-radius); margin-bottom: 15px; border-left: 5px solid var(--primary-color); text-align: left;}
+        .interpretation-block.changing { border-left-color: var(--change-color); }
+        .interpretation-block.error { border-left-color: #d63031; }
+        .explorer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; }
+        .grid-hex { cursor: pointer; padding: 8px; border: 1px solid #ddd; border-radius: var(--border-radius); text-align: center; transition: all var(--transition-speed); }
+        .grid-hex:hover { background-color: #e8e8e8; transform: scale(1.05); }
+        .grid-hex .hex-char { font-size: 2em; line-height: 1; }
+        .grid-hex .hex-name { font-size: 0.7em; }
+        #combinatorial-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        .explorer-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: flex-start; }
+        .scrollable-grid { max-height: 70vh; overflow-y: auto; padding-right: 15px; border-right: 1px solid #eee; }
+        .interpretation-display { position: sticky; top: 20px; max-height: 90vh; overflow-y: auto; }
+        .interpretation-display .interpretation-block h4,
+        .interpretation-display h3 { text-align: left; }
+        
+        button {
+            padding: 10px 20px; font-size: 0.9em; cursor: pointer;
+            border-radius: var(--border-radius); border: 1px solid var(--primary-color);
+            background: white; color: var(--primary-color);
+            transition: all var(--transition-speed);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+            font-weight: 500;
+        }
+        button:hover {
+            background: var(--primary-color); color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .mode-toggle .active {
+            background-color: var(--secondary-color); color: white;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .primary-action {
+            background: var(--primary-color); color: white;
+            width: 100%; font-size: 1.1em;
+        }
+        .primary-action:hover {
+            background: var(--secondary-color); border-color: var(--secondary-color);
+        }
+        button:disabled {
+            background: #ccc; border-color: #ccc; color: #888;
+            cursor: not-allowed; transform: none; box-shadow: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>I-Ching Interactive Simulator</h1>
+        <div class="mode-toggle">
+            <button data-mode="casting" class="active">Casting</button>
+            <button data-mode="hex_explorer">Hexagrams</button>
+            <button data-mode="tri_explorer">Trigrams</button>
+            <button data-mode="combinatorial">Combinatorial</button>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <div class="controls-column">
+            <div id="casting-controls" class="active">
+                <h2>1. Cast a Hexagram</h2>
+                <div class="coin-toss-display" id="coin-toss-display">Click "Cast Line" to begin.</div>
+                <button id="cast-line-btn" class="primary-action">Cast Line</button>
+                <button id="reset-cast-btn" style="width:100%; margin-top: 10px;">Reset</button>
+                <p style="text-align:center; font-size: 0.8em; color: #777; margin-top: 15px;">
+                    Symbols on lines: <b>o</b> = Changing Yang (9), <b>x</b> = Changing Yin (6)
+                </p>
+            </div>
+            <div class="hexagram-display" id="hexagram-display"></div>
+            <div id="analysis-controls" style="margin-top: 20px; text-align:center;">
+                <button data-highlight="lower">Lower Trigram</button>
+                <button data-highlight="upper">Upper Trigram</button>
+                <button data-highlight="nuclear">Nuclear Hexagram</button>
+                <button id="toggle-resultant-btn" disabled>View Resultant</button>
+            </div>
+        </div>
+        <div class="results-column">
+            <div data-mode-content="casting" class="active interpretation-display">
+                <div id="casting-interpretation-panel"></div>
+                <div id="analysis-details-panel"></div>
+            </div>
+            <div data-mode-content="hex_explorer">
+                <h2>Explore the 64 Hexagrams</h2>
+                <div class="explorer-layout">
+                    <div id="explorer-grid" class="scrollable-grid"></div>
+                    <div id="explorer-interpretation-panel" class="interpretation-display"></div>
+                </div>
+            </div>
+             <div data-mode-content="tri_explorer">
+                <h2>Explore the 8 Trigrams</h2>
+                <div class="explorer-layout">
+                    <div id="trigram-explorer-grid" class="scrollable-grid"></div>
+                    <div id="trigram-interpretation-panel" class="interpretation-display"></div>
+                </div>
+            </div>
+            <div data-mode-content="combinatorial">
+                <h2>Combine Trigrams</h2>
+                <div class="explorer-layout">
+                    <div>
+                        <div id="combinatorial-container">
+                            <div>
+                                <h3>Upper Trigram (Outer)</h3>
+                                <div id="combo-upper-grid" class="explorer-grid"></div>
+                            </div>
+                            <div>
+                                <h3>Lower Trigram (Inner)</h3>
+                                <div id="combo-lower-grid" class="explorer-grid"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="combinatorial-interpretation-panel" class="interpretation-display"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // =========================================================================
+    // STATE & DOM ELEMENTS
+    // =========================================================================
+    const AppState = {
+        mode: 'casting', lines: [], primaryHex: null, resultantHex: null,
+        changingIndices: [], isResultantShown: false, selectedLower: null, selectedUpper: null,
+        reset() {
+            this.lines = []; this.primaryHex = null; this.resultantHex = null;
+            this.changingIndices = []; this.isResultantShown = false;
+            this.selectedLower = null; this.selectedUpper = null;
+        }
+    };
+    
+    const castBtn = document.getElementById('cast-line-btn'),
+        resetBtn = document.getElementById('reset-cast-btn'),
+        toggleResultantBtn = document.getElementById('toggle-resultant-btn'),
+        hexagramDisplay = document.getElementById('hexagram-display'),
+        analysisControls = document.getElementById('analysis-controls'),
+        analysisDetailsPanel = document.getElementById('analysis-details-panel'),
+        castingInterpretationPanel = document.getElementById('casting-interpretation-panel'),
+        castingControls = document.getElementById('casting-controls'),
+        coinDisplay = document.getElementById('coin-toss-display'),
+        explorerGrid = document.getElementById('explorer-grid'),
+        explorerInterpretationPanel = document.getElementById('explorer-interpretation-panel'),
+        trigramExplorerGrid = document.getElementById('trigram-explorer-grid'),
+        trigramInterpretationPanel = document.getElementById('trigram-interpretation-panel'),
+        comboLowerGrid = document.getElementById('combo-lower-grid'),
+        comboUpperGrid = document.getElementById('combo-upper-grid'),
+        combinatorialInterpretationPanel = document.getElementById('combinatorial-interpretation-panel');
+
+    // =========================================================================
+    // HELPER & RENDERING FUNCTIONS
+    // =========================================================================
+    function getBinaryDecimalString(binary, isCentered = true) {
+        return `<p style="text-align: ${isCentered ? 'center' : 'left'}; margin: ${isCentered ? '-10px 0 15px' : '5px 0 0 0'};"><small><b>Binary:</b> ${binary} &nbsp;&nbsp; <b>Decimal:</b> ${parseInt(binary, 2)}</small></p>`;
+    }
+
+    function renderHexagramTo(targetElement, binaryString, changingIndices = [], showChangingSymbols = false) {
+        targetElement.innerHTML = '';
+        if (!binaryString) return;
+        [...binaryString].forEach((bit, index) => {
+            const lineContainer = document.createElement('div');
+            const isYang = bit === '1';
+            const isChanging = showChangingSymbols && changingIndices.includes(index);
+            lineContainer.className = `line-container ${isYang ? 'yang' : 'yin'} ${isChanging ? 'changing' : ''}`;
+            lineContainer.innerHTML = isYang ? '<div class="line-bar"></div>' : '<div class="line-bar"></div><div class="line-bar"></div>';
+            targetElement.appendChild(lineContainer);
+        });
+    }
+    
+    function renderCastedLines() {
+        hexagramDisplay.innerHTML = '';
+        AppState.lines.forEach(line => {
+            const lineContainer = document.createElement('div');
+            const isYang = line.type.includes('yang');
+            const isChanging = line.type.includes('old');
+            lineContainer.className = `line-container ${isYang ? 'yang' : 'yin'} ${isChanging ? 'changing' : ''}`;
+            lineContainer.innerHTML = isYang ? '<div class="line-bar"></div>' : '<div class="line-bar"></div><div class="line-bar"></div>';
+            hexagramDisplay.appendChild(lineContainer);
+        });
+    }
+
+    function renderCoinToss(coins, sum, type) {
+        coinDisplay.innerHTML = '';
+        coins.forEach(value => {
+            const coinEl = document.createElement('div');
+            coinEl.className = `coin ${value === 3 ? 'heads' : 'tails'}`;
+            coinEl.textContent = value === 3 ? 'H' : 'T';
+            coinDisplay.appendChild(coinEl);
+        });
+        const resultText = document.createElement('p');
+        resultText.innerHTML = `Sum: <b>${sum}</b> → ${type.replace('_', ' ')}`;
+        coinDisplay.appendChild(resultText);
+    }
+
+    function renderCastingInterpretation() {
+        castingInterpretationPanel.innerHTML = '';
+        if (!AppState.primaryHex) {
+            if (AppState.lines.length === 6) {
+                castingInterpretationPanel.innerHTML = `<div class="interpretation-block error"><h3>Unknown Hexagram</h3><p>The cast lines formed a hexagram not in this app's dataset.</p></div>`;
+            }
+            return;
+        }
+        const hexToShow = (AppState.isResultantShown && AppState.resultantHex) ? AppState.resultantHex : AppState.primaryHex;
+        const titlePrefix = (AppState.isResultantShown && AppState.resultantHex) ? "Resultant: " : "Primary: ";
+        let content = `<h3>${titlePrefix}${hexToShow.id}. ${hexToShow.name}</h3>`;
+        content += getBinaryDecimalString(hexToShow.binary);
+        content += `<div class="interpretation-block"><p>${hexToShow.judgment}</p></div>`;
+        if (AppState.changingIndices.length > 0 && !AppState.isResultantShown) {
+            content += `<div class="interpretation-block changing"><h4>Changing Lines</h4>`;
+            AppState.changingIndices.forEach(index => { content += `<p><b>Line ${index + 1}:</b> ${AppState.primaryHex.lines[index]}</p>`; });
+            content += `</div>`;
+        }
+        castingInterpretationPanel.innerHTML = content;
+    }
+
+    function displayHexagramInExplorer(hexId, selectedElement) {
+        explorerGrid.querySelectorAll('.grid-hex').forEach(el => el.style.border = '1px solid #ddd');
+        if (selectedElement) selectedElement.style.border = '2px solid var(--primary-color)';
+        const hex = HEXAGRAM_DATA.find(h => h.id === hexId);
+        if (!hex) {
+            explorerInterpretationPanel.innerHTML = `<div class="interpretation-block error"><p>Hexagram not found.</p></div>`;
+            return;
+        }
+        let content = `<h3>${hex.id}. ${hex.name} (${hex.chinese})</h3>`;
+        content += getBinaryDecimalString(hex.binary);
+        content += `<div class="interpretation-block"><h4>Judgment</h4><p>${hex.judgment}</p></div>`;
+        content += `<div class="interpretation-block"><h4>Line Meanings</h4>`;
+        hex.lines.forEach((line, index) => { content += `<p style="margin: 5px 0;"><b>Line ${index + 1}:</b> ${line}</p>`; });
+        content += `</div>`;
+        explorerInterpretationPanel.innerHTML = content;
+    }
+
+    function populateExplorerGrid(){
+        if (!HEXAGRAM_DATA || HEXAGRAM_DATA.length === 0) return;
+        HEXAGRAM_DATA.forEach(hex => {
+            const hexEl = document.createElement('div');
+            hexEl.className = 'grid-hex';
+            hexEl.dataset.id = hex.id;
+            const lowerBin = hex.binary.substring(0, 3);
+            const upperBin = hex.binary.substring(3, 6);
+            hexEl.innerHTML = `<div class="hex-char">${TRIGRAM_DATA[upperBin]?.symbol ?? '?'}</div><div class="hex-char">${TRIGRAM_DATA[lowerBin]?.symbol ?? '?'}</div><div class="hex-name">${hex.id}. ${hex.name}</div>`;
+            explorerGrid.appendChild(hexEl);
+        });
+    }
+
+    function populateTrigramGrid(container, clickHandler) {
+        if (!TRIGRAM_DATA || Object.keys(TRIGRAM_DATA).length === 0) return;
+        container.innerHTML = '';
+        for (const binary in TRIGRAM_DATA) {
+            const trigram = TRIGRAM_DATA[binary];
+            const triEl = document.createElement('div');
+            triEl.className = 'grid-hex';
+            triEl.dataset.binary = binary;
+            triEl.innerHTML = `<div class="hex-char">${trigram.symbol}</div><div class="hex-name">${trigram.name}</div>`;
+            triEl.addEventListener('click', () => clickHandler(binary, triEl));
+            container.appendChild(triEl);
+        }
+    }
+
+    // =========================================================================
+    // CORE LOGIC & EVENT HANDLERS
+    // =========================================================================
+    function castLine() {
+        if (AppState.lines.length >= 6) return;
+        const coins = Array.from({length: 3}, () => Math.random() < 0.5 ? 2 : 3);
+        const sum = coins.reduce((a, b) => a + b, 0);
+        const typeMap = { 6: 'old_yin', 7: 'young_yang', 8: 'young_yin', 9: 'old_yang' };
+        AppState.lines.push({ value: sum, type: typeMap[sum] });
+        renderCoinToss(coins, sum, typeMap[sum]);
+        renderCastedLines();
+        if (AppState.lines.length === 6) { processHexagram(); castBtn.disabled = true; }
+    }
+
+    function processHexagram() {
+        const primaryBinary = AppState.lines.map(line => (line.type.includes('yang')) ? '1' : '0').join('');
+        AppState.primaryHex = HEXAGRAM_LOOKUP[primaryBinary];
+        AppState.changingIndices = AppState.lines.map((line, index) => line.type.includes('old') ? index : -1).filter(index => index !== -1);
+        if (AppState.changingIndices.length > 0) {
+            const resultantBinary = [...primaryBinary].map((bit, index) => AppState.changingIndices.includes(index) ? (bit === '1' ? '0' : '1') : bit).join('');
+            AppState.resultantHex = HEXAGRAM_LOOKUP[resultantBinary];
+            toggleResultantBtn.disabled = false;
+        }
+        renderCastingInterpretation();
+    }
+    
+    function loadHexagramFromExplorer(hexId) {
+        const hex = HEXAGRAM_DATA.find(h => h.id === hexId);
+        if (!hex) return;
+        AppState.reset();
+        AppState.primaryHex = hex;
+        AppState.lines = [...hex.binary].map(bit => ({ type: bit === '1' ? 'young_yang' : 'young_yin' }));
+        renderHexagramTo(hexagramDisplay, hex.binary, [], false);
+        renderCastingInterpretation();
+        toggleResultantBtn.disabled = true;
+    }
+
+    function handleCombination() {
+        if (!AppState.selectedLower || !AppState.selectedUpper) return;
+        const finalBinary = AppState.selectedLower + AppState.selectedUpper;
+        const hex = HEXAGRAM_LOOKUP[finalBinary];
+        
+        if (hex) {
+            // Manually update the state and display WITHOUT resetting the selections
+            AppState.primaryHex = hex;
+            AppState.lines = [...hex.binary].map(bit => ({ type: bit === '1' ? 'young_yang' : 'young_yin' }));
+            renderHexagramTo(hexagramDisplay, hex.binary, [], false);
+            toggleResultantBtn.disabled = true;
+
+            // Generate and display the interpretation for combinatorial mode
+            let content = `<h3>${hex.id}. ${hex.name} (${hex.chinese})</h3>`;
+            content += getBinaryDecimalString(hex.binary);
+            content += `<div class="interpretation-block"><h4>Judgment</h4><p>${hex.judgment}</p></div>`;
+            content += `<div class="interpretation-block"><h4>Line Meanings</h4>`;
+            hex.lines.forEach((line, index) => { content += `<p style="margin: 5px 0;"><b>Line ${index + 1}:</b> ${line}</p>`; });
+            content += `</div>`;
+            combinatorialInterpretationPanel.innerHTML = content;
+        } else {
+            // As a minor improvement, this now clears the visual display for an invalid combination
+            hexagramDisplay.innerHTML = '';
+            AppState.primaryHex = null;
+            combinatorialInterpretationPanel.innerHTML = `<div class="interpretation-block error"><p>This combination does not form a valid hexagram.</p></div>`;
+        }
+    }
+
+    function init() {
+        // --- THIS IS THE DEFINITIVE, CLEANED INITIALIZATION FUNCTION ---
+
+        // Basic Listeners
+        castBtn.addEventListener('click', castLine);
+        resetBtn.addEventListener('click', () => {
+            AppState.reset();
+            hexagramDisplay.innerHTML = '';
+            castingInterpretationPanel.innerHTML = '';
+            analysisDetailsPanel.innerHTML = '';
+            castBtn.disabled = false;
+            toggleResultantBtn.disabled = true;
+            toggleResultantBtn.textContent = "View Resultant";
+            coinDisplay.innerHTML = 'Click "Cast Line" to begin.';
+            document.querySelectorAll('.grid-hex').forEach(e => e.style.border = '1px solid #ddd');
+            explorerInterpretationPanel.innerHTML = '';
+            trigramInterpretationPanel.innerHTML = '';
+            combinatorialInterpretationPanel.innerHTML = '';
+        });
+        toggleResultantBtn.addEventListener('click', () => {
+            AppState.isResultantShown = !AppState.isResultantShown;
+            toggleResultantBtn.textContent = AppState.isResultantShown ? "View Primary" : "View Resultant";
+            const hexToRender = AppState.isResultantShown ? AppState.resultantHex : AppState.primaryHex;
+            renderHexagramTo(hexagramDisplay, hexToRender.binary, AppState.changingIndices, !AppState.isResultantShown);
+            renderCastingInterpretation();
+        });
+        
+        // Mode Toggling
+        document.querySelectorAll('.mode-toggle button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetMode = e.target.dataset.mode;
+                AppState.mode = targetMode;
+                document.querySelectorAll('.mode-toggle button').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                document.querySelectorAll('[data-mode-content]').forEach(el => el.classList.remove('active'));
+                castingControls.classList.remove('active');
+                if (targetMode === 'casting') {
+                    castingControls.classList.add('active');
+                }
+                const activeContent = document.querySelector(`[data-mode-content="${targetMode}"]`);
+                if (activeContent) activeContent.classList.add('active');
+                resetBtn.click();
+            });
+        });
+        
+        // Analysis Controls
+        analysisControls.addEventListener('click', e => {
+            if (!AppState.primaryHex) return;
+            analysisDetailsPanel.innerHTML = '';
+            document.querySelectorAll('#hexagram-display .line-container').forEach(line => {
+                line.className = line.className.replace(/ highlight-[\w-]+/g, '');
+            });
+            if (e.target.matches('[data-highlight]')) {
+                const action = e.target.dataset.highlight;
+                const lines = document.querySelectorAll('#hexagram-display .line-container');
+                let binaryKey = '', title = '', componentHex = null;
+                if (action === 'lower') {
+                    title = 'Lower Trigram (Inner Aspect)';
+                    binaryKey = AppState.primaryHex.binary.substring(0, 3);
+                    lines.forEach((line, i) => { if (i < 3) line.classList.add('highlight-lower'); });
+                } else if (action === 'upper') {
+                    title = 'Upper Trigram (Outer Aspect)';
+                    binaryKey = AppState.primaryHex.binary.substring(3, 6);
+                    lines.forEach((line, i) => { if (i >= 3) line.classList.add('highlight-upper'); });
+                } else if (action === 'nuclear' && AppState.primaryHex.binary.length === 6) {
+                    title = 'Nuclear Hexagram (Core Potential)';
+                    const lowerNuclearBin = AppState.primaryHex.binary.substring(1, 4);
+                    const upperNuclearBin = AppState.primaryHex.binary.substring(2, 5);
+                    componentHex = HEXAGRAM_LOOKUP[lowerNuclearBin + upperNuclearBin];
+                    lines.forEach((line, i) => {
+                        if ([1,2,3].includes(i)) line.classList.add('highlight-nuclear-1');
+                        if ([2,3,4].includes(i)) line.classList.add('highlight-nuclear-2');
+                    });
+                }
+                let detailsContent = '';
+                if (componentHex) {
+                    detailsContent = `<div class="interpretation-block"><h3>${title}</h3><p><b>${componentHex.id}. ${componentHex.name}</b></p>${getBinaryDecimalString(componentHex.binary, false)}</div>`;
+                } else if (binaryKey && TRIGRAM_DATA[binaryKey]) {
+                    const trigram = TRIGRAM_DATA[binaryKey];
+                    detailsContent = `<div class="interpretation-block"><h3>${title}</h3><p><span style="font-size: 1.5em; vertical-align: middle;">${trigram.symbol}</span> <b>${trigram.name} (${trigram.quality})</b></p>${getBinaryDecimalString(binaryKey, false)}</div>`;
+                }
+                analysisDetailsPanel.innerHTML = detailsContent;
+            }
+        });
+    
+        // Grid Population & Grid-Specific Listeners
+        populateExplorerGrid();
+        explorerGrid.addEventListener('click', e => {
+            const hexEl = e.target.closest('.grid-hex');
+            if (hexEl) {
+                const hexId = parseInt(hexEl.dataset.id);
+                displayHexagramInExplorer(hexId, hexEl);
+                loadHexagramFromExplorer(hexId);
+            }
+        });
+        
+        populateTrigramGrid(trigramExplorerGrid, (binary, el) => {
+            trigramExplorerGrid.querySelectorAll('.grid-hex').forEach(e => e.style.border = '1px solid #ddd');
+            el.style.border = '2px solid var(--primary-color)';
+            const trigram = TRIGRAM_DATA[binary];
+            let content = `<div class="interpretation-block"><h3>${trigram.name} (${trigram.quality})</h3>`;
+            content += getBinaryDecimalString(binary, false);
+            content += `<p>This trigram represents the concept of ${trigram.quality.toLowerCase()}. When doubled, it forms the hexagram below.</p></div>`;
+            trigramInterpretationPanel.innerHTML = content;
+            const doubledBinary = binary + binary;
+            const correspondingHex = HEXAGRAM_LOOKUP[doubledBinary];
+            if (correspondingHex) { loadHexagramFromExplorer(correspondingHex.id); }
+        });
+
+        populateTrigramGrid(comboLowerGrid, (binary, el) => {
+            AppState.selectedLower = binary;
+            comboLowerGrid.querySelectorAll('.grid-hex').forEach(e => e.style.border = '1px solid #ddd');
+            el.style.border = '2px solid var(--primary-color)';
+            handleCombination();
+        });
+
+        populateTrigramGrid(comboUpperGrid, (binary, el) => {
+            AppState.selectedUpper = binary;
+            comboUpperGrid.querySelectorAll('.grid-hex').forEach(e => e.style.border = '1px solid #ddd');
+            el.style.border = '2px solid var(--primary-color)';
+            handleCombination();
+        });
+        
+        // Final Setup on Load
+        document.querySelector('[data-mode-content="casting"]').classList.add('active');
+        castingControls.classList.add('active');
+        resetBtn.click();
+    }
+    
+    init();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ifa Divination Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="ifa-data.js"></script>
+    <style>
+        :root {
+            --primary-color: #27ae60; 
+            --secondary-color: #2c3e50;
+            --bg-color: #f4f7f6; 
+            --container-bg: #ffffff;
+            --font-color: #3d3d3d; 
+            --border-radius: 8px;
+            --transition-speed: 0.2s;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(to bottom, #f4f7f6, #e9ecef);
+            color: var(--font-color);
+            line-height: 1.6; 
+            margin: 0; 
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: var(--container-bg);
+            padding: 0; /* Removed padding for sticky header */
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 35px rgba(0,0,0,0.08);
+            overflow: hidden; /* Contains sticky header */
+        }
+        
+        /* NEW: Sticky Header */
+        header {
+            position: sticky;
+            top: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 10;
+            padding: 20px 40px 15px 40px;
+            border-bottom: 1px solid #eee;
+        }
+
+        h1, h2, h3 { 
+            color: var(--secondary-color); 
+            text-align: center; 
+            margin-top: 0; 
+        }
+        h1 { margin-bottom: 20px; }
+        h4 { margin-bottom: 10px; }
+        
+        /* NEW: Main content padding */
+        .main-content {
+            padding: 20px 40px 40px 40px;
+        }
+
+        /* REMOVED: .main-layout and .controls-column */
+
+        .mode-toggle { 
+            text-align: center; 
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        [data-mode-content] { 
+            display: none; 
+        }
+        [data-mode-content].active { 
+            display: block; 
+        }
+
+        /* NEW: Wrapper for casting content */
+        .casting-wrapper {
+            max-width: 500px;
+            margin: 20px auto 0 auto;
+        }
+
+        .odu-display-container {
+            display: flex; 
+            justify-content: center; 
+            gap: 20px;
+            padding: 20px; 
+            border: 2px solid #ddd; 
+            border-radius: var(--border-radius);
+            min-height: 240px; 
+            background: #f9f9f9;
+            margin-top: 20px; /* NEW */
+        }
+        .odu-leg {
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+            gap: 8px; 
+            flex-basis: 100px;
+        }
+        .odu-line {
+            font-size: 2em; 
+            font-family: monospace; 
+            font-weight: bold;
+            line-height: 1.1; 
+            height: 30px;
+        }
+        .odu-leg h4 { 
+            margin: 0 0 10px 0; 
+            font-size: 0.9em; 
+            color: #777; 
+        }
+
+        .casting-info-display { 
+            text-align: center; 
+            padding: 15px; 
+            background: #f1f2f6; 
+            border-radius: var(--border-radius); 
+            margin-bottom: 20px; 
+            min-height: 60px; 
+        }
+        
+        .interpretation-block { 
+            background: #f1f2f6; 
+            padding: 15px; 
+            border-radius: var(--border-radius); 
+            margin-bottom: 15px; 
+            border-left: 5px solid var(--primary-color); 
+            text-align: left;
+        }
+        .interpretation-block.error { 
+            border-left-color: #d63031; 
+        }
+        .interpretation-block.oriki { 
+            background: #fdfbe8; 
+            border-left-color: #f39c12; 
+        }
+        .interpretation-block.oriki pre { 
+            white-space: pre-wrap; 
+            font-family: inherit; 
+            margin: 0; 
+        }
+
+        .explorer-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); 
+            gap: 15px; 
+        }
+        .grid-odu { 
+            cursor: pointer; 
+            padding: 8px; 
+            border: 1px solid #ddd; 
+            border-radius: var(--border-radius); 
+            text-align: center; 
+            transition: all var(--transition-speed); 
+        }
+        .grid-odu:hover { 
+            background-color: #e8e8e8; 
+            transform: scale(1.05); 
+        }
+        .grid-odu .odu-name { 
+            font-size: 0.7em; 
+        }
+        
+        .mini-odu-container { 
+            display: flex; 
+            justify-content: center; 
+            gap: 8px; 
+        }
+        .mini-odu-leg { 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .mini-odu-line { 
+            font-size: 1.2em; 
+            line-height: 1; 
+            font-family: monospace; 
+        }
+        
+        #combinatorial-container { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+        }
+
+        .explorer-layout { 
+            display: grid; 
+            grid-template-columns: 1fr; /* Single column for mobile */
+            gap: 30px; 
+            align-items: flex-start; 
+        }
+        @media (min-width: 768px) { /* Two columns for tablet+ */
+            .explorer-layout {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
+        /* MODIFIED: Removed sticky/max-height from interpretation-display */
+        .interpretation-display .interpretation-block h4,
+        .interpretation-display h3 { 
+            text-align: left; 
+        }
+
+        .scrollable-grid, .scrollable-list { 
+            max-height: 70vh; 
+            overflow-y: auto; 
+            padding-right: 15px; 
+        }
+        
+        /* NEW: Centered lists for glossary/prayers */
+        #glossary-list, #prayers-list {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Glossary/Prayer Styles */
+        .glossary-item, .prayer-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .glossary-item strong {
+            color: var(--primary-color);
+        }
+        .prayer-item {
+            background: #fdfdfd;
+            border-radius: var(--border-radius);
+            margin-bottom: 15px;
+            border: 1px solid #eee;
+        }
+        .prayer-item h4 {
+            margin: 0 0 10px 0;
+            color: var(--secondary-color);
+        }
+        .prayer-item pre {
+            white-space: pre-wrap;
+            font-family: inherit;
+            font-style: italic;
+            color: #555;
+            margin: 0;
+            padding-left: 10px;
+        }
+        #glossary-search {
+            width: 100%;
+            max-width: 800px; /* NEW */
+            display: block; /* NEW */
+            margin: 0 auto 15px auto; /* NEW */
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: var(--border-radius);
+            box-sizing: border-box; 
+        }
+        .loading-overlay {
+            text-align: center;
+            font-size: 1.2em;
+            color: #777;
+            padding: 40px;
+        }
+
+        /* Glossary Link Style */
+        .glossary-link {
+            color: var(--primary-color);
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .glossary-link:hover {
+            text-decoration-style: solid;
+            background: #eaf8f0;
+        }
+        
+        /* IMPROVED Casting Animation Styles */
+        #ikin-bowl-container {
+            position: relative;
+            width: 200px;
+            height: 150px;
+            margin: 20px auto;
+            border: 3px solid var(--secondary-color);
+            background: #d2b48c; /* Wood color */
+            border-bottom-left-radius: 100px;
+            border-bottom-right-radius: 100px;
+            overflow: hidden;
+        }
+
+        #ikin-bowl {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-content: center;
+            gap: 5px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #ikin-bowl .ikin-nut {
+            width: 12px;
+            height: 12px;
+            background: #5d4037; /* Dark nut color */
+            border-radius: 50%;
+            transition: opacity 0.2s ease-in-out;
+            opacity: 0.7; /* Default opacity */
+        }
+        
+        /* NEW: Hand Element */
+        #ikin-hand {
+            content: '';
+            position: absolute;
+            top: -80px; /* Start off-screen */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 80px;
+            background: #c68642; /* Skin tone */
+            border: 2px solid #8d5524;
+            border-radius: 20px 20px 50% 50%; /* Open hand */
+            transition: all 0.4s ease-in-out;
+            z-index: 5;
+        }
+
+        /* Button Styles */
+        button {
+            padding: 10px 15px; 
+            font-size: 0.9em; 
+            cursor: pointer;
+            border-radius: var(--border-radius); 
+            border: 1px solid var(--primary-color);
+            background: white; 
+            color: var(--primary-color);
+            transition: all var(--transition-speed);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+            font-weight: 500;
+        }
+        button:hover {
+            background: var(--primary-color); 
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        /* IMPROVED active state */
+        .mode-toggle .active {
+            background-color: var(--primary-color); 
+            color: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-color: var(--primary-color);
+            transform: translateY(-1px);
+        }
+        .primary-action {
+            background: var(--primary-color); 
+            color: white;
+            width: 100%; 
+            font-size: 1.1em;
+        }
+        .primary-action:hover {
+            background: #219d52; 
+            border-color: #219d52;
+        }
+        button:disabled {
+            background: #ccc; 
+            border-color: #ccc; 
+            color: #888;
+            cursor: not-allowed; 
+            transform: none; 
+            box-shadow: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Ifa Divination Simulator</h1>
+        <div class="mode-toggle">
+            <button data-mode="casting" class="active">Casting (Ikin)</button>
+            <button data-mode="odu_explorer">Odu Explorer</button>
+            <button data-mode="combinatorial">Odu Combiner</button>
+            <button data-mode="glossary">Glossary</button>
+            <button data-mode="prayers">Prayers</button>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <div id="loading-indicator" class="loading-overlay">
+            <h3>Loading Ifa Data...</h3>
+        </div>
+
+        <div data-mode-content="casting" class="active">
+            <div class="casting-wrapper">
+                <div id="casting-controls">
+                    <h2>1. Cast an Odu</h2>
+                    
+                    <div id="ikin-bowl-container">
+                        <div id="ikin-hand"></div> <div id="ikin-bowl">
+                            </div>
+                    </div>
+
+                    <div class="casting-info-display" id="casting-info-display">Click "Cast Ikin" 8 times.</div>
+                    <button id="cast-ikin-btn" class="primary-action">Cast Ikin (1/8)</button>
+                    <button id="reset-cast-btn" style="width:100%; margin-top: 10px;">Reset</button>
+                    <p style="text-align:center; font-size: 0.8em; color: #777; margin-top: 15px;">
+                        Casting simulates grabbing 16 palm nuts.
+                        <br><b>•</b> = 1 remaining (Odd)
+                        <br><b>••</b> = 2 remaining (Even)
+                    </p>
+                </div>
+                <div class="odu-display-container" id="odu-display-container">
+                    <div class="odu-leg" id="odu-right-leg">
+                        <h4>Right Leg</h4>
+                    </div>
+                    <div class="odu-leg" id="odu-left-leg">
+                        <h4>Left Leg</h4>
+                    </div>
+                </div>
+            </div>
+            <div id="casting-interpretation-panel" class="casting-wrapper"></div>
+        </div>
+        
+        <div data-mode-content="odu_explorer">
+            <h2>Explore the 256 Odu</h2>
+            <div class="explorer-layout">
+                <div id="explorer-grid" class="scrollable-grid explorer-grid"></div>
+                <div id="explorer-interpretation-panel" class="interpretation-display"></div>
+            </div>
+        </div>
+        
+        <div data-mode-content="combinatorial">
+            <h2>Combine Primary Odu</h2>
+            <div class="explorer-layout">
+                <div>
+                    <div id="combinatorial-container">
+                        <div>
+                            <h3>Right Leg</h3>
+                            <div id="combo-right-grid" class="explorer-grid"></div>
+                        </div>
+                        <div>
+                            <h3>Left Leg</h3>
+                            <div id="combo-left-grid" class="explorer-grid"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="combinatorial-interpretation-panel" class="interpretation-display"></div>
+            </div>
+        </div>
+
+        <div data-mode-content="glossary">
+            <h2>Ifa Glossary</h2>
+            <input type="text" id="glossary-search" placeholder="Search terms...">
+            <div id="glossary-list" class="scrollable-list"></div>
+        </div>
+
+        <div data-mode-content="prayers">
+            <h2>Ifa Prayers</h2>
+            <div id="prayers-list" class="scrollable-list"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // =========================================================================
+    // GLOBAL DATA STORE
+    // =========================================================================
+    
+    const IFA_DATA = {
+        odu_256: [],
+        odu_256_raw: [],
+        odu_16_base_info: [],
+        odu_16_lookup: {},
+        prayers: [],
+        glossary: {},
+        linkableTerms: []
+    };
+    
+    let ODU_256_LOOKUP = {};
+    const TOTAL_IKIN = 16; // Total nuts to start with
+
+    // =========================================================================
+    // STATE & DOM ELEMENTS
+    // =========================================================================
+    const AppState = {
+        mode: 'casting',
+        casts: [],
+        finalOdu: null,
+        selectedRight: null,
+        selectedLeft: null,
+        isCasting: false,
+        reset() {
+            this.casts = [];
+            this.finalOdu = null;
+            this.selectedRight = null;
+            this.selectedLeft = null;
+            this.isCasting = false;
+        }
+    };
+    
+    const castBtn = document.getElementById('cast-ikin-btn'),
+        resetBtn = document.getElementById('reset-cast-btn'),
+        oduRightLeg = document.getElementById('odu-right-leg'),
+        oduLeftLeg = document.getElementById('odu-left-leg'),
+        castingInfoDisplay = document.getElementById('casting-info-display'),
+        castingInterpretationPanel = document.getElementById('casting-interpretation-panel'),
+        castingControls = document.getElementById('casting-controls'),
+        explorerGrid = document.getElementById('explorer-grid'),
+        explorerInterpretationPanel = document.getElementById('explorer-interpretation-panel'),
+        comboRightGrid = document.getElementById('combo-right-grid'),
+        comboLeftGrid = document.getElementById('combo-left-grid'),
+        combinatorialInterpretationPanel = document.getElementById('combinatorial-interpretation-panel'),
+        glossaryList = document.getElementById('glossary-list'),
+        glossarySearch = document.getElementById('glossary-search'),
+        prayersList = document.getElementById('prayers-list'),
+        loadingIndicator = document.getElementById('loading-indicator'),
+        ikinHand = document.getElementById('ikin-hand'), // NEW
+        ikinBowl = document.getElementById('ikin-bowl'); // NEW
+
+    // =========================================================================
+    // DATA LOADING & INITIALIZATION
+    // =========================================================================
+
+    async function loadData() {
+        try {
+            // Use the globally available IFA_JSON_DATA
+            if (typeof IFA_JSON_DATA === 'undefined') {
+                throw new Error('Ifa data not loaded. Make sure ifa-data.js is included.');
+            }
+
+            const data = IFA_JSON_DATA;
+            
+            // Process data as before
+            const glossaryObject = (data.glossary || []).reduce((acc, item) => {
+                if(item.term) {
+                    acc[item.term.toLowerCase()] = item.definition;
+                }
+                return acc;
+            }, {});
+            IFA_DATA.glossary = glossaryObject;
+
+            IFA_DATA.prayers = data.prayers || [];
+            IFA_DATA.odu_256_raw = data.ODU || [];
+            IFA_DATA.odu_16_base_info = data.orishasAndOdus ? (data.orishasAndOdus.majorOdus || []) : [];
+
+            if (data.orishasAndOdus) {
+                const divineHeads = (data.orishasAndOdus.divineHeads || []).map(o => o.name);
+                const majorOdus = (data.orishasAndOdus.majorOdus || []).map(o => o.name);
+                IFA_DATA.linkableTerms = [...divineHeads, ...majorOdus]
+                                        .sort((a, b) => b.length - a.length);
+            }
+
+            return true;
+
+        } catch (error) {
+            console.error("Error loading Ifa data:", error);
+            loadingIndicator.innerHTML = `<h3>Error loading data</h3><p>${error.message}</p>`;
+            loadingIndicator.style.color = "#d63031";
+            return false;
+        }
+    }
+
+    function findOrikiForOduName(baseName) {
+        const searchName = baseName.toUpperCase();
+        if (searchName === 'OGBE') {
+            const ogbePrayer = IFA_DATA.prayers.find(p => p.title.toUpperCase() === 'ORIKI EJIOGBE');
+            if (ogbePrayer) return ogbePrayer;
+        }
+        const prayer = IFA_DATA.prayers.find(p => 
+            p.title &&
+            p.title.toUpperCase().startsWith('ORIKI ') &&
+            p.title.toUpperCase().includes(searchName) &&
+            p.title.toUpperCase().includes('MEJI')
+        );
+        return prayer;
+    }
+
+    function generateIfaData() {
+        const baseOduInfo = {};
+        const baseOduFromODU = IFA_DATA.odu_256_raw.slice(0, 16);
+        const baseOduFromMajor = IFA_DATA.odu_16_base_info;
+        
+        if(baseOduFromODU.length < 16 || baseOduFromMajor.length < 16) {
+            console.error("Incomplete base Odu data. Cannot proceed.");
+            loadingIndicator.innerHTML = "<h3>Error processing Odu data</h3><p>Incomplete base Odu data. Needs 16 Meji and 16 major Odu definitions.</p>";
+            loadingIndicator.style.color = "#d63031";
+            return;
+        }
+
+        for (let i = 0; i < 16; i++) {
+            const oduData = baseOduFromODU[i];
+            const majorOduData = baseOduFromMajor[i];
+            const binary = oduData.composition_binary_father;
+            const name = majorOduData.name;
+            const meaning = majorOduData.description;
+            const symbol_lines = [...binary].map(b => b === '1' ? '•' : '••');
+            const baseInfo = { name, binary, meaning, symbol_lines };
+            baseOduInfo[binary] = baseInfo;
+            IFA_DATA.odu_16_lookup[binary] = baseInfo;
+        }
+
+        IFA_DATA.odu_256 = IFA_DATA.odu_256_raw.map(odu => {
+            const { id, name: rawName, composition_binary_father, composition_binary_mother, composition_binary_full } = odu;
+            const isMeji = (composition_binary_father === composition_binary_mother);
+            let meaning = "";
+            let oriki = null;
+            const rightLegInfo = baseOduInfo[composition_binary_father];
+            const leftLegInfo = baseOduInfo[composition_binary_mother];
+
+            if (!rightLegInfo || !leftLegInfo) {
+                console.warn(`Could not find base info for Odu: ${rawName}`);
+                return null;
+            }
+
+            if (isMeji) {
+                meaning = rightLegInfo.meaning;
+                oriki = findOrikiForOduName(rightLegInfo.name);
+            } else {
+                meaning = `Combination of ${rightLegInfo.name} (${rightLegInfo.meaning}) and ${leftLegInfo.name} (${leftLegInfo.meaning})`;
+            }
+
+            return {
+                id: id,
+                name: rawName,
+                meaning: meaning,
+                right_leg: composition_binary_father,
+                left_leg: composition_binary_mother,
+                binary: composition_binary_full.replace(" ", ""), // <-- THE FIX
+                isMeji: isMeji,
+                oriki: oriki
+            };
+        }).filter(odu => odu !== null);
+
+        ODU_256_LOOKUP = IFA_DATA.odu_256.reduce((acc, odu) => {
+            acc[odu.binary] = odu;
+            return acc;
+        }, {});
+    }
+
+    // =========================================================================
+    // AUTO-LINKING FUNCTIONS
+    // =========================================================================
+
+    function linkGlossaryTerms(text) {
+        if (!IFA_DATA.linkableTerms || IFA_DATA.linkableTerms.length === 0 || !text) {
+            return text;
+        }
+        const termsRegex = new RegExp(`\\b(${IFA_DATA.linkableTerms.join('|')})\\b`, 'gi');
+        let safeText = document.createElement('div');
+        safeText.textContent = text;
+        return safeText.innerHTML.replace(termsRegex, (match) => {
+            return `<a class="glossary-link" data-glossary-term="${match.toLowerCase()}">${match}</a>`;
+        });
+    }
+
+    function handleGlossaryLinkClick(term) {
+        document.querySelector('button[data-mode="glossary"]').click();
+        glossarySearch.value = term;
+        filterGlossary();
+        const targetItem = glossaryList.querySelector(`.glossary-item[data-term^="${term}"]`);
+        if (targetItem) {
+            targetItem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            targetItem.style.backgroundColor = '#fdfbe8';
+            setTimeout(() => { targetItem.style.backgroundColor = ''; }, 2000);
+        }
+    }
+
+    // =========================================================================
+    // HELPER & RENDERING FUNCTIONS
+    // =========================================================================
+    
+    function renderCastedOdu() {
+        oduRightLeg.innerHTML = '<h4>Right Leg</h4>';
+        oduLeftLeg.innerHTML = '<h4>Left Leg</h4>';
+
+        AppState.casts.forEach((cast, index) => {
+            const lineEl = document.createElement('div');
+            lineEl.className = 'odu-line';
+            lineEl.textContent = cast.symbol;
+            if (index < 4) {
+                oduRightLeg.appendChild(lineEl);
+            } else {
+                oduLeftLeg.appendChild(lineEl);
+            }
+        });
+    }
+
+    function renderCastingInfo(remainder) {
+        const castNum = AppState.casts.length;
+        const text = (remainder === 1) ? 'I (•)' : 'II (••)';
+        castingInfoDisplay.innerHTML = `<p>Cast ${castNum} of 8: <b>${remainder}</b> nut remaining → <b>${text}</b></p>`;
+    }
+
+    function renderOduInterpretation(odu, targetPanel) {
+        targetPanel.innerHTML = '';
+        if (!odu) {
+            targetPanel.innerHTML = `<div class="interpretation-block error"><h3>Unknown Odu</h3><p>The cast lines did not match a known Odu.</p></div>`;
+            return;
+        }
+        if (!IFA_DATA.odu_16_lookup[odu.right_leg] || !IFA_DATA.odu_16_lookup[odu.left_leg]) {
+             targetPanel.innerHTML = `<div class="interpretation-block error"><h3>Data Error</h3><p>Could not find base Odu info for this cast.</p></div>`;
+             return;
+        }
+
+        const rightLegName = IFA_DATA.odu_16_lookup[odu.right_leg].name;
+        const leftLegName = IFA_DATA.odu_16_lookup[odu.left_leg].name;
+        
+        let content = `<h3>${odu.id}. ${odu.name}</h3>`;
+        content += `<p style="margin: 5px 0 0 0;"><small><b>Binary:</b> ${odu.binary.slice(0,4)} ${odu.binary.slice(4,8)}</small></p>`;
+        
+        if (odu.meaning) {
+            content += `<div class="interpretation-block"><h4>Meaning: ${linkGlossaryTerms(odu.meaning)}</h4></div>`;
+        }
+        if (!odu.isMeji) {
+             content += `<div class="interpretation-block"><p>This Odu combines <b>${linkGlossaryTerms(rightLegName)}</b> (right) and <b>${linkGlossaryTerms(leftLegName)}</b> (left).</p></div>`;
+        }
+        if (odu.isMeji && odu.oriki) {
+            content += `
+                <div class="interpretation-block oriki">
+                    <h4>${odu.oriki.title || 'Invocation'}</h4>
+                    ${odu.oriki.subtitle ? `<h5>${odu.oriki.subtitle}</h5>` : ''}
+                    <p><strong>Yoruba:</strong><br><pre>${linkGlossaryTerms(odu.oriki.yoruba || 'No data')}</pre></p>
+                    <p><strong>English:</strong><br><pre>${linkGlossaryTerms(odu.oriki.english || 'No data')}</pre></p>
+                </div>
+            `;
+        }
+        targetPanel.innerHTML = content;
+    }
+
+    function createMiniOdu(binaryStr) {
+        let right = '', left = '';
+        const lines = [...binaryStr].map(b => b === '1' ? '•' : '••');
+        lines.slice(0, 4).forEach(l => { right += `<div class="mini-odu-line">${l}</div>`; });
+        lines.slice(4, 8).forEach(l => { left += `<div class="mini-odu-line">${l}</div>`; });
+        return `<div class="mini-odu-container">
+                    <div class="mini-odu-leg">${right}</div>
+                    <div class="mini-odu-leg">${left}</div>
+                </div>`;
+    }
+
+    function populateExplorerGrid(){
+        IFA_DATA.odu_256.forEach(odu => {
+            const oduEl = document.createElement('div');
+            oduEl.className = 'grid-odu';
+            oduEl.dataset.binary = odu.binary;
+            oduEl.innerHTML = `
+                ${createMiniOdu(odu.binary)}
+                <div class="odu-name">${odu.id}. ${odu.name}</div>
+            `;
+            oduEl.addEventListener('click', () => {
+                displayOduInExplorer(odu.binary, oduEl);
+                loadOduToCastingDisplay(odu.binary);
+            });
+            explorerGrid.appendChild(oduEl);
+        });
+    }
+
+    function displayOduInExplorer(binary, selectedElement) {
+        explorerGrid.querySelectorAll('.grid-odu').forEach(el => el.style.border = '1px solid #ddd');
+        if (selectedElement) selectedElement.style.border = '2px solid var(--primary-color)';
+        const odu = ODU_256_LOOKUP[binary];
+        renderOduInterpretation(odu, explorerInterpretationPanel);
+    }
+
+    function populateBaseOduGrid(container, clickHandler) {
+        container.innerHTML = '';
+        const baseOduList = Object.values(IFA_DATA.odu_16_lookup).sort((a, b) => {
+            const oduA = IFA_DATA.odu_256.find(o => o.isMeji && o.right_leg === a.binary);
+            const oduB = IFA_DATA.odu_256.find(o => o.isMeji && o.right_leg === b.binary);
+            return (oduA ? oduA.id : 0) - (oduB ? oduB.id : 0);
+        });
+        
+        for (const baseOdu of baseOduList) {
+            const oduEl = document.createElement('div');
+            oduEl.className = 'grid-odu';
+            oduEl.dataset.binary = baseOdu.binary;
+            let lines = '';
+            baseOdu.symbol_lines.forEach(l => { lines += `<div class="mini-odu-line">${l}</div>`; });
+            oduEl.innerHTML = `
+                <div class="mini-odu-container"><div class="mini-odu-leg">${lines}</div></div>
+                <div class="odu-name">${baseOdu.name}</div>
+            `;
+            oduEl.addEventListener('click', () => clickHandler(baseOdu.binary, oduEl));
+            container.appendChild(oduEl);
+        }
+    }
+
+    function populateGlossary() {
+        const sortedTerms = Object.keys(IFA_DATA.glossary).sort();
+        let content = '';
+        for (const term of sortedTerms) {
+            // Use the original term (with case) for display, but data-term is lowercase
+            const displayTerm = (Object.entries(IFA_DATA.glossary).find(([key, val]) => key === term) || [term])[0];
+            content += `
+                <div class="glossary-item" data-term="${term.toLowerCase()}">
+                    <strong>${displayTerm}:</strong> ${IFA_DATA.glossary[term]}
+                </div>
+            `;
+        }
+        glossaryList.innerHTML = content;
+    }
+
+    function filterGlossary() {
+        const filter = glossarySearch.value.toLowerCase();
+        glossaryList.querySelectorAll('.glossary-item').forEach(item => {
+            const term = item.dataset.term;
+            if (term.includes(filter)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    function populatePrayers() {
+        let content = '';
+        for (const prayer of IFA_DATA.prayers) {
+            content += `
+                <div class="prayer-item">
+                    <h4>${prayer.title}</h4>
+                    ${prayer.subtitle ? `<h5>${prayer.subtitle}</h5>` : ''}
+                    <p><strong>Yoruba:</strong><br><pre>${linkGlossaryTerms(prayer.yoruba || 'No data')}</pre></p>
+                    <p><strong>English:</strong><br><pre>${linkGlossaryTerms(prayer.english || 'No data')}</pre></p>
+                </div>
+            `;
+        }
+        prayersList.innerHTML = content;
+    }
+
+    // =========================================================================
+    // CORE LOGIC & EVENT HANDLERS
+    // =========================================================================
+    
+    // NEW IMPROVED ANIMATED castIkin function
+    function castIkin() {
+        if (AppState.casts.length >= 8 || AppState.isCasting) return;
+        AppState.isCasting = true;
+        castBtn.disabled = true;
+
+        // --- Animation ---
+        ikinHand.style.top = '30px'; // Hand moves in
+        
+        // 1. "Grab" the nuts
+        setTimeout(() => {
+            ikinHand.style.borderRadius = '40px'; // Hand "closes"
+            
+            // Determine remainder and how many to "grab"
+            const remainder = Math.floor(Math.random() * 2) + 1;
+            const grabCount = TOTAL_IKIN - remainder;
+            const nuts = ikinBowl.querySelectorAll('.ikin-nut');
+            
+            // Reset all nuts first
+            nuts.forEach(nut => nut.style.opacity = '0.7');
+
+            // Shuffle and pick nuts to "grab"
+            const nutsArray = Array.from(nuts);
+            for (let i = nutsArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [nutsArray[i], nutsArray[j]] = [nutsArray[j], nutsArray[i]];
+            }
+
+            // Make the "grabbed" nuts transparent
+            for(let i = 0; i < grabCount; i++) {
+                nutsArray[i].style.opacity = '0.1';
+            }
+
+            // Store the result
+            const lineValue = {
+                num: remainder,
+                symbol: remainder === 1 ? '•' : '••',
+                binary: remainder === 1 ? '1' : '0'
+            };
+            AppState.casts.push(lineValue);
+            
+            // 2. Move Hand out
+            setTimeout(() => {
+                ikinHand.style.top = '-80px'; // Hand moves out
+                ikinHand.style.borderRadius = '20px 20px 50% 50%'; // Hand "opens"
+                
+                // 3. Update UI after hand is clear
+                setTimeout(() => {
+                    renderCastingInfo(remainder);
+                    renderCastedOdu();
+
+                    AppState.isCasting = false;
+                    
+                    if (AppState.casts.length < 8) {
+                        castBtn.disabled = false;
+                        castBtn.textContent = `Cast Ikin (${AppState.casts.length + 1}/8)`;
+                    } else {
+                        castBtn.textContent = `Cast Ikin (8/8)`;
+                        processOdu();
+                    }
+                }, 400); // Wait for hand to move out
+
+            }, 300); // Time for hand to be "closed"
+
+        }, 400); // Time for hand to move in
+    }
+
+    function processOdu() {
+        const rightBinary_TTB = AppState.casts.slice(0, 4).map(c => c.binary).join('');
+        const leftBinary_TTB = AppState.casts.slice(4, 8).map(c => c.binary).join('');
+        
+        const finalBinary = rightBinary_TTB + leftBinary_TTB;
+        AppState.finalOdu = ODU_256_LOOKUP[finalBinary];
+        renderOduInterpretation(AppState.finalOdu, castingInterpretationPanel);
+    }
+
+    function loadOduToCastingDisplay(binary) {
+        const odu = ODU_256_LOOKUP[binary];
+        if (!odu) return;
+
+        AppState.reset();
+        AppState.finalOdu = odu;
+        AppState.casts = [...odu.binary].map(b => ({
+            symbol: b === '1' ? '•' : '••',
+            binary: b
+        }));
+        
+        renderCastedOdu();
+        renderOduInterpretation(odu, castingInterpretationPanel);
+        castBtn.disabled = true;
+        castBtn.textContent = `Cast Ikin (8/8)`;
+        castingInfoDisplay.innerHTML = `<p>Displaying Odu from Explorer</p>`;
+    }
+
+    function handleCombination() {
+        if (!AppState.selectedRight || !AppState.selectedLeft) return;
+        const finalBinary = AppState.selectedRight + AppState.selectedLeft;
+        const odu = ODU_256_LOOKUP[finalBinary];
+        if (odu) {
+            loadOduToCastingDisplay(finalBinary);
+            renderOduInterpretation(odu, combinatorialInterpretationPanel);
+        } else {
+            combinatorialInterpretationPanel.innerHTML = `<div class="interpretation-block error"><p>This combination is not valid.</p></div>`;
+        }
+    }
+    
+    function resetCastingUI() {
+        AppState.reset();
+        oduRightLeg.innerHTML = '<h4>Right Leg</h4>';
+        oduLeftLeg.innerHTML = '<h4>Left Leg</h4>';
+        castingInterpretationPanel.innerHTML = '';
+        castBtn.disabled = false;
+        castBtn.textContent = 'Cast Ikin (1/8)';
+        castingInfoDisplay.innerHTML = 'Click "Cast Ikin" 8 times.';
+        
+        // Reset nuts
+        ikinBowl.querySelectorAll('.ikin-nut').forEach(nut => nut.style.opacity = '0.7');
+        
+        // Reset explorer/combiner highlights
+        document.querySelectorAll('.grid-odu').forEach(e => e.style.border = '1px solid #ddd');
+        explorerInterpretationPanel.innerHTML = '';
+        combinatorialInterpretationPanel.innerHTML = '';
+        
+        // Reset search
+        glossarySearch.value = '';
+        filterGlossary();
+    }
+    
+    /**
+     * Main application entry point
+     */
+    async function init() {
+        const dataLoaded = await loadData();
+        if (!dataLoaded) return;
+
+        loadingIndicator.style.display = 'none';
+        
+        generateIfaData();
+        
+        // Populate the Ikin bowl with 16 "nuts"
+        let nutsHtml = '';
+        for (let i = 0; i < TOTAL_IKIN; i++) {
+            nutsHtml += `<div class="ikin-nut" id="ikin-nut-${i}"></div>`;
+        }
+        ikinBowl.innerHTML = nutsHtml;
+
+        populateExplorerGrid();
+        populateGlossary();
+        populatePrayers();
+        
+        populateBaseOduGrid(comboRightGrid, (binary, el) => {
+            AppState.selectedRight = binary;
+            comboRightGrid.querySelectorAll('.grid-odu').forEach(e => e.style.border = '1px solid #ddd');
+            el.style.border = '2px solid var(--primary-color)';
+            handleCombination();
+        });
+
+        populateBaseOduGrid(comboLeftGrid, (binary, el) => {
+            AppState.selectedLeft = binary;
+            comboLeftGrid.querySelectorAll('.grid-odu').forEach(e => e.style.border = '1px solid #ddd');
+            el.style.border = '2px solid var(--primary-color)';
+            handleCombination();
+        });
+
+        // Setup Event Listeners
+        castBtn.addEventListener('click', castIkin);
+        glossarySearch.addEventListener('input', filterGlossary);
+        
+        document.body.addEventListener('click', (e) => {
+            if (e.target.classList.contains('glossary-link')) {
+                e.preventDefault();
+                const term = e.target.dataset.glossaryTerm;
+                handleGlossaryLinkClick(term);
+            }
+        });
+        
+        resetBtn.addEventListener('click', resetCastingUI);
+
+        // Mode Toggling
+        document.querySelectorAll('.mode-toggle button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetMode = e.target.dataset.mode;
+                AppState.mode = targetMode;
+                
+                document.querySelectorAll('.mode-toggle button').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                document.querySelectorAll('[data-mode-content]').forEach(el => el.classList.remove('active'));
+                document.querySelector(`[data-mode-content="${targetMode}"]`).classList.add('active');
+                
+                resetCastingUI();
+            });
+        });
+
+        // Final Setup
+        resetCastingUI(); // Call reset to set initial state
+        document.querySelector('[data-mode-content="casting"]').classList.add('active'); // Show casting tab by default
+    }
+    
+    // Run the app
+    init();
+});
+</script>
+</body>
+</html>

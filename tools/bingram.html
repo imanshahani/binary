@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary Grammar Interactive Demo</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #e2e8f0;
+            --accent-color: #38bdf8;
+            --border-color: #334155;
+            --success-color: #4ade80;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            display: grid;
+            gap: 20px;
+        }
+
+        /* Input Section */
+        .card {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h2, h3 { margin-top: 0; color: var(--accent-color); }
+
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1.2rem;
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--success-color);
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
+        .error-msg {
+            color: #ef4444;
+            font-size: 0.9rem;
+            height: 1.2rem;
+            margin-top: 5px;
+        }
+
+        /* Controls Grid */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .control-group {
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.03);
+        }
+
+        .group-title {
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            color: #94a3b8;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+        }
+
+        .btn-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        button {
+            padding: 10px;
+            cursor: pointer;
+            background-color: #334155;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        button:hover { background-color: var(--accent-color); color: #0f172a; }
+        button:active { transform: scale(0.98); }
+
+        .btn-reset {
+            background-color: #ef4444;
+            margin-top: 10px;
+            width: auto;
+            padding: 8px 16px;
+        }
+        .btn-reset:hover { background-color: #dc2626; color: white; }
+
+        /* Results Area */
+        .result-box {
+            background-color: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+            margin-bottom: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+
+        .stat-value { color: var(--accent-color); font-weight: bold; }
+
+        /* History Log */
+        .history-log {
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+        }
+        .log-entry {
+            border-bottom: 1px solid var(--border-color);
+            padding: 8px 0;
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 10px;
+        }
+        .log-op { color: var(--accent-color); font-weight: bold; }
+        .log-val { font-family: monospace; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h2>Binary Transformer</h2>
+        <label>Current Binary String (S)</label>
+        <input type="text" id="inputString" value="10" placeholder="Enter 0s and 1s">
+        <div id="errorMsg" class="error-msg"></div>
+        <button class="btn-reset" onclick="resetApp()">Reset to '10'</button>
+    </div>
+
+    <div class="card">
+        <h3>Grammar Operations</h3>
+        <div class="controls-grid">
+            <div class="control-group">
+                <div class="group-title">Action: Replace</div>
+                <div class="btn-grid">
+                    <button onclick="applyGrammar('Replace', 'Identity')">Identity (S)</button>
+                    <button onclick="applyGrammar('Replace', 'Invert')">Invert (NOT S)</button>
+                    <button onclick="applyGrammar('Replace', 'Reverse')">Reverse (REV S)</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="group-title">Action: Append</div>
+                <div class="btn-grid">
+                    <button onclick="applyGrammar('Append', 'Identity')">Identity (S + S)</button>
+                    <button onclick="applyGrammar('Append', 'Invert')">Invert (S + NOT S)</button>
+                    <button onclick="applyGrammar('Append', 'Reverse')">Reverse (S + REV S)</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="group-title">Action: Prepend</div>
+                <div class="btn-grid">
+                    <button onclick="applyGrammar('Prepend', 'Identity')">Identity (S + S)</button>
+                    <button onclick="applyGrammar('Prepend', 'Invert')">Invert (NOT S + S)</button>
+                    <button onclick="applyGrammar('Prepend', 'Reverse')">Reverse (REV S + S)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Current State</h3>
+        <div class="result-box" id="resultDisplay">10</div>
+        <div class="stats">
+            <div>Length: <span id="lengthDisplay" class="stat-value">2</span></div>
+            <div>Decimal: <span id="decimalDisplay" class="stat-value">2</span></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Transformation History</h3>
+        <div id="historyLog" class="history-log">
+            </div>
+    </div>
+</div>
+
+<script>
+    // 1. Primitive Functions
+    const identity = (s) => s;
+    
+    const invert = (s) => {
+        return s.split('').map(char => char === '0' ? '1' : '0').join('');
+    };
+    
+    const reverse = (s) => {
+        return s.split('').reverse().join('');
+    };
+
+    // State Management
+    let currentS = "10";
+
+    // Initialization
+    window.onload = () => {
+        updateUI();
+        document.getElementById('inputString').addEventListener('input', handleManualInput);
+    };
+
+    function handleManualInput(e) {
+        const val = e.target.value;
+        const errorEl = document.getElementById('errorMsg');
+        
+        // Validate binary
+        if (/^[01]*$/.test(val)) {
+            currentS = val;
+            errorEl.textContent = '';
+            updateStats();
+        } else {
+            errorEl.textContent = 'Invalid characters. Only 0 and 1 allowed.';
+        }
+    }
+
+    function resetApp() {
+        currentS = "10";
+        document.getElementById('inputString').value = currentS;
+        document.getElementById('historyLog').innerHTML = '';
+        updateUI();
+    }
+
+    // 2. Grammar Application Logic
+    function applyGrammar(action, operation) {
+        if (!currentS) return; // Don't run on empty string
+
+        let operand; // The result of the operation (Identity/Invert/Reverse) applied to S
+
+        // Determine the transformation part
+        switch (operation) {
+            case 'Identity': operand = identity(currentS); break;
+            case 'Invert':   operand = invert(currentS); break;
+            case 'Reverse':  operand = reverse(currentS); break;
+        }
+
+        // Apply Action
+        let result;
+        let formulaStr = "";
+
+        if (action === 'Replace') {
+            result = operand;
+            formulaStr = `${operation}(S)`;
+        } else if (action === 'Append') {
+            result = currentS + operand;
+            formulaStr = `S + ${operation}(S)`;
+        } else if (action === 'Prepend') {
+            result = operand + currentS;
+            formulaStr = `${operation}(S) + S`;
+        }
+
+        // Update State
+        logHistory(action + " " + operation, currentS, result);
+        currentS = result;
+        updateUI();
+    }
+
+    // 3. UI Updates
+    function updateUI() {
+        const inputEl = document.getElementById('inputString');
+        const displayEl = document.getElementById('resultDisplay');
+        
+        // Sync input field if it wasn't the source of the change
+        if (document.activeElement !== inputEl) {
+            inputEl.value = currentS;
+        }
+        
+        displayEl.textContent = currentS;
+        updateStats();
+    }
+
+    function updateStats() {
+        const lenEl = document.getElementById('lengthDisplay');
+        const decEl = document.getElementById('decimalDisplay');
+        
+        if (!currentS) {
+            lenEl.textContent = '0';
+            decEl.textContent = '0';
+            return;
+        }
+
+        lenEl.textContent = currentS.length;
+
+        // BigInt needed for large binary strings
+        try {
+            const decimalValue = BigInt('0b' + currentS);
+            decEl.textContent = decimalValue.toString();
+        } catch (e) {
+            decEl.textContent = "Error/Too Large";
+        }
+    }
+
+    function logHistory(opName, oldS, newS) {
+        const logContainer = document.getElementById('historyLog');
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        
+        // Truncate for display in log if too long
+        const displayOld = oldS.length > 20 ? oldS.substring(0, 20) + "..." : oldS;
+        const displayNew = newS.length > 20 ? newS.substring(0, 20) + "..." : newS;
+
+        entry.innerHTML = `
+            <div class="log-op">${opName}</div>
+            <div class="log-val">${displayOld} &rarr; ${displayNew}</div>
+        `;
+        
+        // Insert at top
+        logContainer.insertBefore(entry, logContainer.firstChild);
+    }
+</script>
+
+</body>
+</html>

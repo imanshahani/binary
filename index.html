@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>The Binary Codex</title>
+    
+    <script id="data-script" src="codex-data.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@400;700&family=Fira+Code&display=swap" rel="stylesheet">
+    <style>
+        /* =========================================
+           THEME & CORE
+           ========================================= */
+        :root {
+            --bg-base: #152220;        
+            --panel-bg: #101817; 
+            --teal-core: #3F5E59;
+            --teal-bright: #68918a;
+            --gold-main: #E5C15D;
+            --text-white: #ffffff;
+            --text-muted: #b0c4c2;
+            --border-solid: 1px solid rgba(229, 193, 93, 0.5);
+            --danger: #ff6b6b;
+            --font-head: 'Cinzel', serif;
+            --font-body: 'Lato', sans-serif;
+            --font-mono: 'Fira Code', monospace;
+            --header-height: 65px;
+        }
+
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0; background-color: var(--bg-base); color: var(--text-white);
+            font-family: var(--font-body); height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+        }
+
+        /* PUBLIC MODE */
+        body.public-mode .admin-ui { display: none !important; }
+        body.public-mode .editable-wrapper { border: none !important; margin-bottom: 20px; }
+        body.public-mode .editable-wrapper:hover { border-color: transparent; }
+
+        #persianCanvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0; pointer-events: none;
+        }
+
+        /* =========================================
+           UI & NAVIGATION
+           ========================================= */
+        header.nav-bar {
+            height: var(--header-height); background: var(--panel-bg);
+            border-bottom: var(--border-solid); display: flex; align-items: center; 
+            justify-content: space-between; padding: 0 20px; z-index: 100;
+        }
+
+        .brand { font-family: var(--font-head); font-size: 1.2rem; color: var(--gold-main); font-weight: 700; }
+        .header-actions { display: flex; gap: 10px; }
+
+        /* =========================================
+           LAYOUT & MANUSCRIPT
+           ========================================= */
+        main.viewport { flex-grow: 1; position: relative; z-index: 10; display: flex; overflow: hidden; }
+
+        .sidebar {
+            width: 300px; background: var(--panel-bg); border-right: var(--border-solid);
+            display: flex; flex-direction: column; flex-shrink: 0; z-index: 20;
+        }
+
+        .toc-content { flex-grow: 1; overflow-y: auto; padding: 20px; }
+        
+        .toc-link { 
+            display: block; color: var(--text-muted); text-decoration: none; 
+            font-size: 0.9rem; padding: 6px 0; cursor: pointer;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .toc-link.chapter { color: #fff; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1); margin-top: 15px; margin-bottom: 5px;}
+        .toc-link.sub { margin-left: 15px; border-left: 2px solid var(--teal-core); padding-left: 10px; }
+        .toc-link:hover, .toc-link.active { color: var(--gold-main); }
+
+        .codex-scroll { flex-grow: 1; overflow-y: auto; padding: 0; scroll-behavior: smooth; position: relative; }
+        
+        .manuscript { 
+            max-width: 900px; margin: 0 auto; padding: 60px; padding-bottom: 200px;
+            min-height: 100%;
+            background: #101817; border-left: 1px solid var(--gold-main); border-right: 1px solid var(--gold-main);
+            box-shadow: 0 0 100px rgba(0,0,0,0.8);
+        }
+
+        /* =========================================
+           EDITOR BLOCKS
+           ========================================= */
+        .editable-wrapper {
+            position: relative; margin-bottom: 40px; padding: 20px;
+            border: 1px solid transparent; border-radius: 4px;
+        }
+        body:not(.public-mode) .editable-wrapper:hover { border-color: rgba(63, 94, 89, 0.5); }
+        .editable-wrapper.editing { background: rgba(0,0,0,0.3); border-color: var(--gold-main); border-style: dashed; }
+
+        /* Typography */
+        h1, h2 { font-family: var(--font-head); color: var(--gold-main); margin-top: 0; outline: none; }
+        h1 { font-size: 2.2rem; border-bottom: 2px solid var(--teal-core); padding-bottom: 15px; text-align: center; }
+        h2 { font-size: 1.5rem; color: #fff; margin-bottom: 15px; }
+        
+        .content-body { color: #e0e0e0; font-size: 1.05rem; line-height: 1.8; outline: none; }
+        .content-body p { margin-bottom: 1.5em; text-align: justify; }
+        .content-body img { max-width: 100%; height: auto; display: block; margin: 20px auto; border: 1px solid var(--teal-core); }
+
+        /* Links */
+        .content-body a { 
+            color: var(--gold-main); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; transition: 0.2s;
+        }
+        .content-body a:hover { color: var(--teal-bright); text-shadow: 0 0 5px rgba(104, 145, 138, 0.5); }
+
+        /* Toolbars */
+        .toolbar {
+            display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap;
+            height: 0; opacity: 0; overflow: hidden; transition: 0.2s;
+        }
+        body:not(.public-mode) .editable-wrapper:hover .toolbar, .editable-wrapper.editing .toolbar { height: auto; opacity: 1; }
+
+        .btn {
+            background: transparent; border: 1px solid var(--gold-main);
+            color: var(--gold-main); padding: 5px 10px; font-size: 0.75rem; font-weight: bold;
+            cursor: pointer; transition: 0.2s;
+        }
+        .btn:hover { background: var(--gold-main); color: #000; }
+        .btn-primary { background: var(--gold-main); color: #000; }
+        .btn-danger { border-color: var(--danger); color: var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: #000; }
+
+        /* Tool Frame */
+        .tool-frame {
+            width: 100%; height: 600px; border: 1px solid var(--teal-core);
+            background: #000; margin: 20px 0; position: relative;
+        }
+        .tool-frame iframe { width: 100%; height: 100%; border: none; }
+        .tool-label { 
+            position: absolute; top: -25px; left: 0; 
+            font-family: var(--font-mono); font-size: 0.8rem; color: var(--teal-bright); 
+        }
+        body.public-mode .tool-label { display: none; }
+
+        /* =========================================
+           MOBILE
+           ========================================= */
+        @media (max-width: 900px) {
+            main.viewport { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; border-bottom: 1px solid var(--gold-main); }
+            .toc-content { display: none; }
+            .sidebar.mobile-open .toc-content { display: block; max-height: 40vh; }
+            .manuscript { padding: 30px 15px; border: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="persianCanvas"></canvas>
+
+    <header class="nav-bar">
+        <div class="brand">The Binary Codex</div>
+        
+        <div class="header-actions admin-ui">
+            <button class="btn" onclick="addBlock('chapter')">+ Chap</button>
+            <button class="btn" onclick="addBlock('sub')">+ Sub</button>
+            <button class="btn" onclick="saveData()">💾 Save</button>
+            <button class="btn btn-primary" onclick="exportPublicReader()">🚀 Bake Public</button>
+        </div>
+    </header>
+
+    <main class="viewport">
+        <aside class="sidebar" id="sidebar">
+            <div style="padding: 15px; text-align: center; cursor:pointer; background:rgba(0,0,0,0.2);" onclick="toggleMobileToc()">
+                <small style="color:var(--gold-main);">TABLE OF CONTENTS</small>
+            </div>
+            <div class="toc-content" id="toc-container"></div>
+        </aside>
+
+        <div class="codex-scroll">
+            <div class="manuscript" id="manuscript">
+                <div style="text-align:center; padding-top:100px; color: #555;" class="admin-ui">
+                    <p>No data loaded.</p>
+                    <p style="font-size:0.9rem;">Ensure <code>codex-data.js</code> is in the same folder.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        /* =========================================
+           1. INITIALIZATION
+           ========================================= */
+        let appState = [];
+
+        function init() {
+            if (typeof CODEX_DATA !== 'undefined') {
+                appState = CODEX_DATA;
+                renderAll();
+            } else {
+                console.log("No data found. Starting fresh.");
+            }
+            resize();
+            draw();
+        }
+
+        /* =========================================
+           2. RENDERING ENGINE
+           ========================================= */
+        function renderAll() {
+            const ms = document.getElementById('manuscript');
+            const toc = document.getElementById('toc-container');
+            ms.innerHTML = ''; 
+            toc.innerHTML = '';
+
+            appState.forEach((block, index) => {
+                if(!block.id) block.id = 'b-' + Math.random().toString(36).substr(2, 9);
+
+                // --- MANUSCRIPT BLOCK ---
+                const wrapper = document.createElement('div');
+                wrapper.className = 'editable-wrapper';
+                wrapper.id = block.id;
+                
+                const headerTag = block.type === 'chapter' ? 'h1' : 'h2';
+                
+                // Toolbar with [x TBL] button added
+                const toolbar = `
+                    <div class="toolbar admin-ui">
+                        <button class="btn" onclick="toggleEdit(this)">✎ Edit</button>
+                        <button class="btn" onclick="insertLink(this)">[LINK]</button>
+                        <button class="btn" onclick="insertTool(this)">[+ TOOL]</button>
+                        <button class="btn" onclick="insertImage(this)">[IMG]</button>
+                        <button class="btn" onclick="insertTable(this)">[TBL]</button>
+                        <button class="btn btn-danger" onclick="deleteTable(this)" title="Click inside table to delete">[x TBL]</button>
+                        <button class="btn btn-danger" onclick="deleteBlock(this)">Del</button>
+                        <button class="btn" onclick="moveBlock(this, -1)">▲</button>
+                        <button class="btn" onclick="moveBlock(this, 1)">▼</button>
+                    </div>`;
+
+                wrapper.innerHTML = toolbar +
+                    `<${headerTag} class="block-title" contenteditable="false">${block.title}</${headerTag}>` +
+                    `<div class="content-body" contenteditable="false">${block.content}</div>`;
+
+                ms.appendChild(wrapper);
+
+                // --- SYNC & TOC ---
+                const titleEl = wrapper.querySelector('.block-title');
+                titleEl.addEventListener('input', function() {
+                    const tocLink = document.getElementById('link-' + block.id);
+                    if(tocLink) tocLink.innerText = this.innerText;
+                    block.title = this.innerText; 
+                });
+
+                const link = document.createElement('div');
+                link.id = 'link-' + block.id;
+                link.className = `toc-link ${block.type}`;
+                link.innerText = block.title;
+                link.onclick = () => {
+                    document.getElementById(block.id).scrollIntoView({behavior: 'smooth'});
+                    if(window.innerWidth < 900) toggleMobileToc();
+                };
+                toc.appendChild(link);
+            });
+        }
+
+        /* =========================================
+           3. EDITING FUNCTIONS
+           ========================================= */
+        function toggleEdit(btn) {
+            const wrapper = btn.closest('.editable-wrapper');
+            const editables = wrapper.querySelectorAll('[contenteditable]');
+            const isEditing = wrapper.classList.contains('editing');
+
+            if (!isEditing) {
+                wrapper.classList.add('editing');
+                btn.innerText = "Done";
+                btn.classList.add('btn-primary');
+                editables.forEach(el => el.contentEditable = "true");
+                wrapper.querySelector('.content-body').focus();
+            } else {
+                wrapper.classList.remove('editing');
+                btn.innerText = "✎ Edit";
+                btn.classList.remove('btn-primary');
+                editables.forEach(el => el.contentEditable = "false");
+                updateStateFromDOM(); 
+            }
+        }
+
+        function addBlock(type) {
+            appState.push({
+                id: 'b-' + Date.now(),
+                type: type,
+                title: type === 'chapter' ? 'New Chapter' : 'New Sub-Section',
+                content: '<p>Start writing...</p>'
+            });
+            renderAll();
+            setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 100);
+        }
+
+        function deleteBlock(btn) {
+            if(!confirm("Delete this entire section?")) return;
+            const id = btn.closest('.editable-wrapper').id;
+            appState = appState.filter(b => b.id !== id);
+            renderAll();
+        }
+
+        function moveBlock(btn, dir) {
+            const wrapper = btn.closest('.editable-wrapper');
+            const index = appState.findIndex(b => b.id === wrapper.id);
+            if (index < 0) return;
+            
+            const newIndex = index + dir;
+            if (newIndex >= 0 && newIndex < appState.length) {
+                [appState[index], appState[newIndex]] = [appState[newIndex], appState[index]];
+                renderAll();
+                document.getElementById(appState[newIndex].id).scrollIntoView();
+            }
+        }
+
+        function updateStateFromDOM() {
+            const wrappers = document.querySelectorAll('.editable-wrapper');
+            appState = Array.from(wrappers).map(w => ({
+                id: w.id,
+                type: w.querySelector('h1') ? 'chapter' : 'sub',
+                title: w.querySelector('.block-title').innerText,
+                content: w.querySelector('.content-body').innerHTML
+            }));
+        }
+
+        /* =========================================
+           4. CONTENT INSERTION & TABLE LOGIC
+           ========================================= */
+        
+        function insertLink(btn) {
+            const wrapper = btn.closest('.editable-wrapper');
+            if(!wrapper.classList.contains('editing')) { alert("Click 'Edit' first."); return; }
+            
+            const url = prompt("Enter path/URL (e.g. tools/iching.html):", "tools/");
+            if(!url) return;
+            const text = prompt("Display text:", "Click here");
+            if(!text) return;
+
+            const html = `<a href="${url}" target="_blank">${text}</a>`;
+            document.execCommand('insertHTML', false, html);
+        }
+
+        function insertTool(btn) {
+            const wrapper = btn.closest('.editable-wrapper');
+            if(!wrapper.classList.contains('editing')) { alert("Click 'Edit' first."); return; }
+            
+            const path = prompt("Enter relative path to HTML file:", "");
+            if(path) {
+                const html = `
+                <div class="tool-frame">
+                    <div class="tool-label">EXTERNAL TOOL: ${path}</div>
+                    <iframe src="${path}"></iframe>
+                </div><p>...</p>`;
+                document.execCommand('insertHTML', false, html);
+            }
+        }
+
+        function insertImage(btn) {
+            const wrapper = btn.closest('.editable-wrapper');
+            if(!wrapper.classList.contains('editing')) { alert("Click 'Edit' first."); return; }
+            const url = prompt("Enter Image URL:", "");
+            if(url) document.execCommand('insertHTML', false, `<img src="${url}" />`);
+        }
+
+        // --- IMPROVED TABLE INSERTION ---
+        function insertTable(btn) {
+            const wrapper = btn.closest('.editable-wrapper');
+            if(!wrapper.classList.contains('editing')) { alert("Click 'Edit' first."); return; }
+            
+            const rows = prompt("Total Rows?", "3");
+            const cols = prompt("Columns?", "3");
+            
+            if(rows && cols && !isNaN(rows) && !isNaN(cols)) {
+                let html = '<table style="width:100%; border-collapse:collapse; margin:20px 0; border:1px solid #3F5E59;">';
+                
+                // Generate Header Row
+                html += '<tr>';
+                for(let j=0; j<cols; j++) {
+                    html += `<td style="background:rgba(63,94,89,0.2); font-weight:bold; padding:10px; border:1px solid #3F5E59;">Header</td>`;
+                }
+                html += '</tr>';
+
+                // Generate Data Rows (Total Rows - 1 Header)
+                for(let i=0; i<rows-1; i++) {
+                    html += '<tr>';
+                    for(let j=0; j<cols; j++) html += `<td style="padding:10px; border:1px solid #3F5E59;">Cell</td>`;
+                    html += '</tr>';
+                }
+                html += '</table><p>&nbsp;</p>';
+                document.execCommand('insertHTML', false, html);
+            }
+        }
+
+        // --- NEW TABLE DELETION ---
+        function deleteTable(btn) {
+            const wrapper = btn.closest('.editable-wrapper');
+            if(!wrapper.classList.contains('editing')) { alert("Click 'Edit' first."); return; }
+            
+            // Look for table parent of current selection
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                let node = selection.anchorNode;
+                // Traverse up DOM tree to find if we are inside a TABLE
+                while(node && node !== wrapper) {
+                    if(node.nodeName === 'TABLE') {
+                        if(confirm("Remove this table?")) {
+                            node.remove();
+                        }
+                        return;
+                    }
+                    node = node.parentNode;
+                }
+            }
+            alert("Please click inside the table you wish to delete.");
+        }
+
+        /* =========================================
+           5. SAVE & BAKE SYSTEM
+           ========================================= */
+        function saveData() {
+            updateStateFromDOM(); 
+            const jsonStr = JSON.stringify(appState, null, 2);
+            const fileContent = `const CODEX_DATA = ${jsonStr};`;
+            
+            const blob = new Blob([fileContent], { type: "text/javascript" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "codex-data.js";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            alert("Saved 'codex-data.js'. Overwrite your existing file.");
+        }
+
+        function exportPublicReader() {
+            updateStateFromDOM();
+            let html = document.documentElement.outerHTML;
+            const bakedData = `<script>const CODEX_DATA = ${JSON.stringify(appState)};<\/script>`;
+            html = html.replace(/<script id="data-script" src="codex-data.js"><\/script>/, bakedData);
+            html = html.replace('<body>', '<body class="public-mode">');
+            
+            const blob = new Blob([html], {type: 'text/html'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = "Codex_Public_Reader.html";
+            a.click();
+        }
+
+        /* =========================================
+           6. VISUALS
+           ========================================= */
+        const canvas = document.getElementById('persianCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            draw();
+        }
+
+        function draw() {
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0,0,w,h);
+            ctx.strokeStyle = "rgba(63, 94, 89, 0.15)"; ctx.lineWidth = 1;
+            const step = 50;
+            for(let x=0; x<w; x+=step) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+        }
+
+        function toggleMobileToc() { 
+            document.getElementById('sidebar').classList.toggle('mobile-open'); 
+        }
+
+        window.addEventListener('resize', resize);
+        init();
+
+    </script>
+</body>
+</html>

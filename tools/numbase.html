@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Number Morphology Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Light Mode Variables */
+            --bg-color: #f4f7fa;
+            --panel-bg: #ffffff;
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --accent-color: #4299e1;
+            --border-color: #e2e8f0;
+            --input-bg: #ffffff;
+            --btn-bg: #edf2f7;
+            --btn-hover: #e2e8f0;
+            
+            /* Highlights */
+            --binary-card-bg: #ebf8ff;
+            --binary-card-border: #bee3f8;
+            --binary-val-color: #2b6cb0;
+
+            /* Visual Specifics */
+            --yin-color: #4a69bd; 
+            --yang-color: #1e3799;
+            --fractal-bg: #1a202c;
+            --fractal-pixel-on: #ffffff;
+            --fractal-pixel-off: #1a202c;
+            
+            /* Barcode - Fixed Colors (Do not invert) */
+            --barcode-on: #1a202c;  /* Always Dark */
+            --barcode-off: #e2e8f0; /* Always Light */
+            --barcode-border: #cbd5e0;
+        }
+
+        /* Dark Mode Variables */
+        body.dark-mode {
+            --bg-color: #171923;
+            --panel-bg: #2d3748;
+            --text-primary: #f7fafc;
+            --text-secondary: #a0aec0;
+            --accent-color: #63b3ed;
+            --border-color: #4a5568;
+            --input-bg: #2d3748;
+            --btn-bg: #4a5568;
+            --btn-hover: #718096;
+
+            /* Highlights */
+            --binary-card-bg: #2c5282;
+            --binary-card-border: #4299e1;
+            --binary-val-color: #bee3f8;
+
+            /* Visual Specifics */
+            --yin-color: #63b3ed; 
+            --yang-color: #90cdf4;
+            
+            /* Note: Barcode variables removed here so they inherit from :root (Standard look) */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* --- Header & Input --- */
+        .header-panel {
+            background: var(--panel-bg);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .title-group h1 { margin: 0; font-size: 1.1rem; font-weight: 700; }
+        .title-group p { margin: 2px 0 0 0; color: var(--text-secondary); font-size: 0.8rem; }
+
+        .controls-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Dark Mode Toggle */
+        .theme-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            padding: 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            transition: color 0.3s;
+        }
+        .theme-toggle:hover { color: var(--accent-color); }
+
+        .input-wrapper {
+            display: flex;
+            align-items: center;
+        }
+
+        .ctrl-btn {
+            background: var(--btn-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            width: 40px;
+            height: 36px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background-color 0.2s, border-color 0.3s;
+            user-select: none; /* Prevent text selection during hold */
+            -webkit-user-select: none;
+        }
+        .ctrl-btn:first-child { border-radius: 6px 0 0 6px; border-right: none; }
+        .ctrl-btn:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+        .ctrl-btn:hover { background: var(--btn-hover); }
+        .ctrl-btn:active { background: var(--accent-color); color: white; }
+
+        input[type="number"] {
+            font-family: 'Inter', monospace;
+            font-size: 1.25rem;
+            font-weight: 700;
+            width: 100px;
+            height: 36px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            border-radius: 0;
+            -moz-appearance: textfield;
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+        input:focus { outline: none; border-color: var(--accent-color); z-index: 1; }
+
+        /* --- Base Grid --- */
+        .base-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 8px;
+        }
+
+        .base-card {
+            background: var(--panel-bg);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .base-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 2px;
+            white-space: nowrap;
+        }
+
+        .base-value {
+            font-family: 'Inter', monospace;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent-color);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Special styling for binary card */
+        .base-card.binary-highlight {
+            background: var(--binary-card-bg);
+            border-color: var(--binary-card-border);
+            grid-column: span 2;
+        }
+        .base-card.binary-highlight .base-value {
+            color: var(--binary-val-color);
+        }
+
+        /* --- Visualization Panel --- */
+        .viz-panel {
+            background: var(--panel-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .viz-header {
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.02); /* Subtle tint independent of theme */
+            border-bottom: 1px solid var(--border-color);
+        }
+        .viz-header h2 { margin: 0; font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .viz-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+        }
+
+        @media (max-width: 700px) {
+            .header-panel { flex-direction: column; gap: 10px; text-align: center; }
+            .controls-wrapper { width: 100%; justify-content: space-between; }
+            .input-wrapper { margin: 0 auto; }
+            .theme-toggle { position: absolute; top: 20px; right: 20px; }
+            .viz-grid { grid-template-columns: repeat(2, 1fr); }
+            .base-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+            .base-card.binary-highlight { grid-column: span 1; }
+        }
+        @media (max-width: 400px) {
+            .viz-grid { grid-template-columns: 1fr; }
+        }
+
+        .viz-cell {
+            padding: 16px 8px;
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid transparent;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 110px;
+            transition: border-color 0.3s;
+        }
+        .viz-cell:last-child { border-right: none; }
+        
+        @media (max-width: 700px) {
+             .viz-cell:nth-child(1), .viz-cell:nth-child(2) { border-bottom: 1px solid var(--border-color); }
+             .viz-cell:nth-child(2) { border-right: none; }
+        }
+
+        .viz-title {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        /* --- Visuals --- */
+        .barcode-container { display: flex; height: 40px; gap: 1px; align-items: center; }
+        .bar { height: 100%; width: 8px; transition: background 0.2s, border-color 0.3s; }
+        
+        /* Barcode colors are now fixed to prevent inversion in dark mode */
+        .bar.on { background: var(--barcode-on); }
+        .bar.off { background: var(--barcode-off); border: 1px solid var(--barcode-border); }
+
+        .iching-stack { display: flex; flex-direction: column; gap: 4px; width: 80px; }
+        .iching-line { height: 10px; width: 100%; display: flex; justify-content: space-between; }
+        .iching-line.yang { background: var(--yang-color); }
+        .iching-line.yin .segment { width: 42%; background: var(--yin-color); }
+
+        canvas {
+            image-rendering: pixelated;
+            border: 1px solid var(--border-color);
+            background: var(--fractal-bg); 
+            width: 80px; 
+            height: 80px;
+            transition: border-color 0.3s;
+        }
+
+        .binary-text {
+            font-family: 'Inter', monospace;
+            font-size: 1.25rem;
+            letter-spacing: 0.1em;
+            color: var(--text-primary);
+            text-align: center;
+            word-wrap: break-word;
+            line-height: 1.2;
+        }
+
+    </style>
+</head>
+<body class="dark-mode">
+
+<div class="container">
+    
+    <div class="header-panel">
+        <div class="title-group">
+            <h1>Number Morphology</h1>
+            <p>Interactive Base Translation</p>
+        </div>
+        
+        <div class="controls-wrapper">
+            <div class="input-wrapper">
+                <button class="ctrl-btn" id="btnDec">−</button>
+                <input type="number" id="mainInput" value="0" min="0" oninput="updateAll()">
+                <button class="ctrl-btn" id="btnInc">+</button>
+            </div>
+            
+            <button class="theme-toggle" id="themeToggle" title="Toggle Dark Mode">
+                <svg id="iconMoon" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="base-grid">
+        <div class="base-card">
+            <span class="base-label">Hexadecimal (Base 16)</span>
+            <span class="base-value" id="val16">0</span>
+        </div>
+        <div class="base-card">
+            <span class="base-label">Duodecimal (Base 12)</span>
+            <span class="base-value" id="val12">0</span>
+        </div>
+        <div class="base-card">
+            <span class="base-label">Decimal (Base 10)</span>
+            <span class="base-value" id="val10">0</span>
+        </div>
+        <div class="base-card">
+            <span class="base-label">Nonary (Base 9)</span>
+            <span class="base-value" id="val9">0</span>
+        </div>
+        <div class="base-card">
+            <span class="base-label">Octal (Base 8)</span>
+            <span class="base-value" id="val8">0</span>
+        </div>
+        <div class="base-card">
+            <span class="base-label">Septenary (Base 7)</span>
+            <span class="base-value" id="val7">0</span>
+        </div>
+        <div class="base-card">
+            <span class="base-label">Senary (Base 6)</span>
+            <span class="base-value" id="val6">0</span>
+        </div>
+        <div class="base-card">
+            <span class="base-label">Quinary (Base 5)</span>
+            <span class="base-value" id="val5">0</span>
+        </div>
+        <div class="base-card">
+            <span class="base-label">Quaternary (Base 4)</span>
+            <span class="base-value" id="val4">0</span>
+        </div>
+        <div class="base-card">
+            <span class="base-label">Ternary (Base 3)</span>
+            <span class="base-value" id="val3">0</span>
+        </div>
+        <div class="base-card binary-highlight">
+            <span class="base-label">Binary (Base 2)</span>
+            <span class="base-value" id="val2">0</span>
+        </div>
+    </div>
+
+    <div class="viz-panel">
+        <div class="viz-header">
+            <h2>Base 2 Representations</h2>
+        </div>
+        <div class="viz-grid">
+            
+            <div class="viz-cell">
+                <span class="viz-title">Standard</span>
+                <div class="binary-text" id="binaryTextDisplay">0</div>
+            </div>
+
+            <div class="viz-cell">
+                <span class="viz-title">Barcode</span>
+                <div class="barcode-container" id="barcodeDisplay"></div>
+            </div>
+
+            <div class="viz-cell">
+                <span class="viz-title">I-Ching</span>
+                <div class="iching-stack" id="ichingDisplay"></div>
+            </div>
+
+            <div class="viz-cell">
+                <span class="viz-title">Matrix</span>
+                <canvas id="fractalCanvas" width="64" height="64"></canvas>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const inputEl = document.getElementById('mainInput');
+    const canvas = document.getElementById('fractalCanvas');
+    const ctx = canvas.getContext('2d');
+    const bodyEl = document.body;
+    const iconMoon = document.getElementById('iconMoon');
+    const iconSun = document.getElementById('iconSun');
+
+    // ==========================================
+    // Initialization
+    // ==========================================
+    updateAll();
+
+    // ==========================================
+    // Dark Mode Logic
+    // ==========================================
+    document.getElementById('themeToggle').addEventListener('click', () => {
+        bodyEl.classList.toggle('dark-mode');
+        const isDark = bodyEl.classList.contains('dark-mode');
+        iconMoon.style.display = isDark ? 'none' : 'block';
+        iconSun.style.display = isDark ? 'block' : 'none';
+        
+        // Re-render fractal because CSS variables for colors might have changed
+        const val = parseInt(inputEl.value) || 0;
+        renderFractal(val.toString(2));
+    });
+
+    // ==========================================
+    // Repeat Button Logic (Hold to Increment)
+    // ==========================================
+    const btnInc = document.getElementById('btnInc');
+    const btnDec = document.getElementById('btnDec');
+    let repeatTimer = null;
+    let delayTimer = null;
+    const INITIAL_DELAY = 400; // ms before rapid fire starts
+    const REPEAT_RATE = 50;    // ms between rapid fire increments
+
+    function startAdjust(delta) {
+        adjustValue(delta); // Immediate action
+        // Set delay before rapid firing
+        delayTimer = setTimeout(() => {
+            repeatTimer = setInterval(() => adjustValue(delta), REPEAT_RATE);
+        }, INITIAL_DELAY);
+    }
+
+    function stopAdjust() {
+        clearTimeout(delayTimer);
+        clearInterval(repeatTimer);
+    }
+
+    // Attach events for Mouse and Touch
+    [btnInc, btnDec].forEach(btn => {
+        const delta = btn.id === 'btnInc' ? 1 : -1;
+        
+        btn.addEventListener('mousedown', (e) => { e.preventDefault(); startAdjust(delta); });
+        btn.addEventListener('mouseup', stopAdjust);
+        btn.addEventListener('mouseleave', stopAdjust);
+        
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); startAdjust(delta); });
+        btn.addEventListener('touchend', stopAdjust);
+    });
+
+    // ==========================================
+    // Core Logic
+    // ==========================================
+    function adjustValue(delta) {
+        let val = parseInt(inputEl.value) || 0;
+        val = Math.max(0, val + delta);
+        inputEl.value = val;
+        updateAll();
+    }
+
+    function updateAll() {
+        let val = parseInt(inputEl.value);
+        if (isNaN(val) || val < 0) { val = 0; }
+
+        // Update Base Text Grids (Full Set)
+        document.getElementById('val16').textContent = val.toString(16).toUpperCase();
+        document.getElementById('val12').textContent = val.toString(12).toUpperCase();
+        document.getElementById('val10').textContent = val.toString(10);
+        document.getElementById('val9').textContent = val.toString(9);
+        document.getElementById('val8').textContent = val.toString(8);
+        document.getElementById('val7').textContent = val.toString(7);
+        document.getElementById('val6').textContent = val.toString(6);
+        document.getElementById('val5').textContent = val.toString(5);
+        document.getElementById('val4').textContent = val.toString(4);
+        document.getElementById('val3').textContent = val.toString(3);
+        
+        const binaryStr = val.toString(2);
+        document.getElementById('val2').textContent = binaryStr;
+        document.getElementById('binaryTextDisplay').textContent = binaryStr;
+
+        // Render Visuals
+        renderBarcode(binaryStr);
+        renderIChing(binaryStr);
+        renderFractal(binaryStr);
+    }
+
+    function renderBarcode(binStr) {
+        const container = document.getElementById('barcodeDisplay');
+        container.innerHTML = '';
+        for (let char of binStr) {
+            const bar = document.createElement('div');
+            bar.className = `bar ${char === '1' ? 'on' : 'off'}`;
+            container.appendChild(bar);
+        }
+    }
+
+    function renderIChing(binStr) {
+        const container = document.getElementById('ichingDisplay');
+        container.innerHTML = '';
+        for (let char of binStr) {
+            const line = document.createElement('div');
+            if (char === '1') {
+                line.className = 'iching-line yang';
+            } else {
+                line.className = 'iching-line yin';
+                const seg1 = document.createElement('div'); seg1.className = 'segment';
+                const seg2 = document.createElement('div'); seg2.className = 'segment';
+                line.appendChild(seg1);
+                line.appendChild(seg2);
+            }
+            container.appendChild(line);
+        }
+    }
+
+    function renderFractal(binStr) {
+        const arr = binStr.split('').map(Number);
+        const size = arr.length;
+        
+        const canvasRes = 64; 
+        const pixelScale = Math.floor(canvasRes / size); 
+        const displaySize = size * pixelScale;
+        
+        canvas.width = displaySize;
+        canvas.height = displaySize;
+        
+        // Use CSS variables for colors (optional, but robust)
+        const style = getComputedStyle(document.body);
+        const colorOff = style.getPropertyValue('--fractal-pixel-off').trim();
+        const colorOn = style.getPropertyValue('--fractal-pixel-on').trim();
+
+        ctx.fillStyle = colorOff; 
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                let val;
+                if (r === 0) val = arr[c];
+                else if (c === 0) val = arr[r];
+                else val = 1 - (arr[r] ^ arr[c]);
+
+                if (val === 1) {
+                    ctx.fillStyle = colorOn;
+                    ctx.fillRect(c * pixelScale, r * pixelScale, pixelScale, pixelScale);
+                } else {
+                    ctx.fillStyle = colorOff;
+                    ctx.fillRect(c * pixelScale, r * pixelScale, pixelScale, pixelScale);
+                }
+            }
+        }
+    }
+</script>
+
+</body>
+</html>

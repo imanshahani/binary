@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geomancy Divination Simulator</title>
+    <style>
+        /* --- General Styles --- */
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --danger-color: #e74c3c;
+            --success-color: #2ecc71;
+            --highlight-color: #f1c40f;
+            --light-bg: #ecf0f1;
+            --border-radius: 8px;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: var(--secondary-color);
+            text-align: center;
+        }
+
+        /* --- Figure & Chart Styles --- */
+        .figure {
+            display: flex; flex-direction: column; align-items: center; justify-content: space-around;
+            padding: 10px; border: 2px solid var(--primary-color); border-radius: var(--border-radius);
+            background: var(--light-bg); text-align: center;
+            width: 130px; height: 185px;
+            transition: all 0.2s ease-in-out;
+            flex-shrink: 0;
+        }
+        .figure-row {
+            margin: 2px 0; font-size: 20px; letter-spacing: 5px; height: 22px;
+            width: 80%; /* Give the row a width for the highlight background */
+            border-radius: 4px;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .figure-name {
+            font-weight: bold; font-size: 0.9em; line-height: 1.2;
+            color: var(--secondary-color); cursor: help;
+        }
+        .figure-binary {
+            font-family: monospace, monospace; font-size: 0.9em;
+            color: #555; margin-top: 3px;
+        }
+        
+        /* --- Flexbox Shield Chart Layout --- */
+        #shield-chart-container {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 20px; margin: 20px auto; padding: 10px;
+        }
+        .chart-row {
+            display: flex; flex-wrap: wrap; justify-content: center;
+            gap: 20px;
+        }
+        
+        /* --- Highlighting Styles --- */
+        .figure.highlight-parent {
+            border-color: var(--danger-color); transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(231, 76, 60, 0.5);
+        }
+        .figure.highlight-child {
+            border-color: var(--success-color); transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(46, 204, 113, 0.5);
+        }
+        /* New style for highlighting specific rows/bits */
+        .figure-row.highlight-bit {
+            background-color: var(--highlight-color);
+        }
+
+        /* --- Other Styles --- */
+        .step { display: none; margin: 20px 0; }
+        .active-step { display: block; }
+        button {
+            background: var(--primary-color); color: white; border: none;
+            padding: 12px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 16px; margin: 10px 5px; transition: background 0.2s;
+        }
+        button:hover { background: #2980b9; }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; }
+        .interpretation {
+            background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px;
+            padding: 15px; margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Geomancy Divination Simulator</h1>
+        <p>Experience the ancient binary divination system step by step. Focus on a question as you proceed.</p>
+
+        <div id="step1" class="step">
+            <h2>Step 1: Generate the 16 Lines</h2>
+            <button id="generate-btn">Generate Random Dots</button>
+            <div id="dotDisplay"></div>
+            <button id="next-btn-1" class="next-btn" data-target-step="2" disabled>Next: Create the Mothers</button>
+        </div>
+
+        <div id="step2" class="step">
+            <h2>Step 2: The Four Mothers</h2>
+            <p>The 16 lines create the four "Mother" figures, the foundation of the reading.</p>
+            <div id="allMothers" class="chart-row"></div>
+            <button class="prev-btn" data-target-step="1">Previous</button>
+            <button id="next-btn-2" class="next-btn" data-target-step="3">Next: Generate Full Chart</button>
+        </div>
+
+        <div id="step3" class="step">
+            <h2>Step 3: The Interactive Shield Chart</h2>
+            <p>The entire chart is generated from the Mothers. <b>Hover over any figure</b> to see its origin.</p>
+            <div id="shield-chart-container"></div>
+            <div class="interpretation" id="interpretation"></div>
+            <button class="prev-btn" data-target-step="2">Previous</button>
+            <button id="reset-btn">Start Over</button>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const AppState = { dotCounts: [], chartFigures: [] };
+        const FIGURES_DATA = { /* Data is populated below */ };
+
+        // =================================================================================
+        // UI RENDERING FUNCTIONS
+        // =================================================================================
+        const createFigureElement = (key, title, index, parents = []) => {
+            const figureData = FIGURES_DATA[key] || { name: 'Unknown', meaning: 'No data.' };
+            const el = document.createElement('div');
+            el.className = 'figure';
+            el.id = `figure-${index}`;
+            
+            // Add metadata for highlighting
+            if (parents.length > 0) el.dataset.parents = parents.join(',');
+            if (index >= 5 && index <= 8) el.dataset.sourceRow = index - 5; // Daughter 1 (index 5) comes from row 0
+
+            const binaryString = key.replace(/•/g, '1').replace(/●/g, '0');
+            // Add metadata to each row for bit-highlighting
+            const figureRows = [...key].map((char, rowIndex) => 
+                `<div class="figure-row" data-row-index="${rowIndex}">${char === '•' ? '•' : '••'}</div>`
+            ).join('');
+            
+            el.innerHTML = `
+                <div><b>${title}</b><br><small>(Fig. ${index})</small></div>
+                <div>${figureRows}</div>
+                <div>
+                    <div class="figure-name" title="${figureData.meaning}">${figureData.name}</div>
+                    <div class="figure-binary">${binaryString}</div>
+                </div>`;
+            return el;
+        };
+        
+        const renderShieldChart = (figures) => {
+            const container = document.getElementById('shield-chart-container');
+            container.innerHTML = '';
+
+            const titles = ['Mother 1', 'Mother 2', 'Mother 3', 'Mother 4', 'Daughter 1', 'Daughter 2', 'Daughter 3', 'Daughter 4', 'Niece 1', 'Niece 2', 'Niece 3', 'Niece 4', 'Right Witness', 'Left Witness', 'The Judge'];
+            const parentMap = { 5:[1,2,3,4], 6:[1,2,3,4], 7:[1,2,3,4], 8:[1,2,3,4], 9:[1,2], 10:[3,4], 11:[5,6], 12:[7,8], 13:[9,10], 14:[11,12], 15:[13,14] };
+
+            // Create containers for each row of the chart
+            const mothersRow = document.createElement('div'); mothersRow.className = 'chart-row';
+            const daughtersRow = document.createElement('div'); daughtersRow.className = 'chart-row';
+            const niecesRow = document.createElement('div'); niecesRow.className = 'chart-row';
+            const witnessesRow = document.createElement('div'); witnessesRow.className = 'chart-row';
+            const judgeRow = document.createElement('div'); judgeRow.className = 'chart-row';
+
+            figures.forEach((key, i) => {
+                const index = i + 1;
+                const el = createFigureElement(key, titles[i], index, parentMap[index] || []);
+                if (index <= 4) mothersRow.appendChild(el);
+                else if (index <= 8) daughtersRow.appendChild(el);
+                else if (index <= 12) niecesRow.appendChild(el);
+                else if (index <= 14) witnessesRow.appendChild(el);
+                else judgeRow.appendChild(el);
+            });
+
+            container.append(mothersRow, daughtersRow, niecesRow, witnessesRow, judgeRow);
+        };
+
+        // =================================================================================
+        // FULL SCRIPT (Data, Logic, and Event Handlers)
+        // =================================================================================
+        
+        Object.assign(FIGURES_DATA, {
+            '••••': { name: 'Via', meaning: 'The Way - Journey, change, movement.' }, '•••●': { name: 'Cauda Draconis', meaning: 'Dragon\'s Tail - Endings, decrease, the past.' },
+            '••●•': { name: 'Puer', meaning: 'The Boy - Energy, impulsiveness, beginnings.' }, '••●●': { name: 'Fortuna Minor', meaning: 'Lesser Fortune - Success through effort, risk.' },
+            '•●••': { name: 'Puella', meaning: 'The Girl - Beauty, receptivity, peace.' }, '•●•●': { name: 'Amissio', meaning: 'Loss - Letting go, loss, sometimes beneficial.' },
+            '•●●•': { name: 'Carcer', meaning: 'The Prison - Restriction, delay, binding.' }, '•●●●': { name: 'Laetitia', meaning: 'Joy - Happiness, success, celebration.' },
+            '●•••': { name: 'Caput Draconis', meaning: 'Dragon\'s Head - Beginnings, increase, the future.' }, '●••●': { name: 'Conjunctio', meaning: 'Conjunction - Meetings, connections, unions.' },
+            '●•●•': { name: 'Acquisitio', meaning: 'Gain - Profit, acquisition, success.' }, '●•●●': { name: 'Albus', meaning: 'White - Purity, wisdom, clarity.' },
+            '●●••': { name: 'Fortuna Major', meaning: 'Greater Fortune - Great success, stability.' }, '●●•●': { name: 'Rubeus', meaning: 'Red - Passion, impulse, danger.' },
+            '●●●•': { name: 'Tristitia', meaning: 'Sorrow - Sadness, difficulty, endings.' }, '●●●●': { name: 'Populus', meaning: 'The People - Crowds, stability, public opinion.' }
+        });
+
+        const calculateChart = (mothers) => {
+            const chart = [...mothers];
+            for (let row = 0; row < 4; row++) { chart[4 + row] = chart[0][row] + chart[1][row] + chart[2][row] + chart[3][row]; }
+            const addFigures = (k1, k2) => [...k1].map((c1, i) => ((c1 === '•' ? 1 : 2) + (k2[i] === '•' ? 1 : 2)) % 2 === 1 ? '•' : '●').join('');
+            chart[8] = addFigures(chart[0], chart[1]); chart[9] = addFigures(chart[2], chart[3]);
+            chart[10] = addFigures(chart[4], chart[5]); chart[11] = addFigures(chart[6], chart[7]);
+            chart[12] = addFigures(chart[8], chart[9]); chart[13] = addFigures(chart[10], chart[11]);
+            chart[14] = addFigures(chart[12], chart[13]);
+            return chart;
+        };
+
+        const renderDots = (counts) => {
+            const dotDisplay = document.getElementById('dotDisplay');
+            dotDisplay.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            counts.forEach((dots, i) => {
+                const isOdd = dots % 2 === 1;
+                const lineDiv = document.createElement('div');
+                lineDiv.innerHTML = `<div style="padding: 8px; border-bottom: 1px solid #eee;">Line ${i + 1} (${dots} dots) → <b style="color:${isOdd ? 'var(--danger-color)' : 'var(--primary-color)'}">${isOdd ? 'ODD' : 'EVEN'}</b></div>`;
+                fragment.appendChild(lineDiv);
+            });
+            dotDisplay.appendChild(fragment);
+        };
+
+        const updateInterpretation = (judgeKey) => {
+            const figureData = FIGURES_DATA[judgeKey];
+            document.getElementById('interpretation').innerHTML = `<h3>Interpretation</h3><p>The final outcome is represented by <strong>The Judge: ${figureData.name}</strong>.</p><p><strong>Meaning:</strong> ${figureData.meaning}</p>`;
+        };
+        
+        const setActiveStep = (stepNumber) => {
+            document.querySelectorAll('.step').forEach(step => step.classList.remove('active-step'));
+            document.getElementById(`step${stepNumber}`).classList.add('active-step');
+        };
+
+        const handleGenerateClick = () => {
+            AppState.dotCounts = Array.from({ length: 16 }, () => Math.floor(Math.random() * 20) + 5);
+            renderDots(AppState.dotCounts);
+            document.getElementById('next-btn-1').disabled = false;
+        };
+
+        const handleNavigation = (targetStep) => {
+            if (targetStep === 2) {
+                const mothers = Array.from({ length: 4 }, (_, i) => [0, 1, 2, 3].map(j => AppState.dotCounts[i*4+j] % 2 === 1 ? '•' : '●').join(''));
+                AppState.chartFigures = mothers;
+                const container = document.getElementById('allMothers');
+                container.innerHTML = '';
+                mothers.forEach((key, i) => container.appendChild(createFigureElement(key, `Mother ${i+1}`, i+1)));
+            }
+            if (targetStep === 3) {
+                document.getElementById('allMothers').innerHTML = ''; 
+                const fullChart = calculateChart(AppState.chartFigures.slice(0, 4));
+                AppState.chartFigures = fullChart;
+                renderShieldChart(fullChart);
+                updateInterpretation(fullChart[14]);
+            }
+            setActiveStep(targetStep);
+        };
+        
+        const resetApp = () => {
+            AppState.dotCounts = []; AppState.chartFigures = [];
+            document.getElementById('dotDisplay').innerHTML = '';
+            document.getElementById('next-btn-1').disabled = true;
+            setActiveStep(1);
+        };
+
+        document.getElementById('generate-btn').addEventListener('click', handleGenerateClick);
+        document.getElementById('reset-btn').addEventListener('click', resetApp);
+        document.querySelectorAll('.next-btn, .prev-btn').forEach(btn => btn.addEventListener('click', () => handleNavigation(parseInt(btn.dataset.targetStep))));
+
+        document.getElementById('shield-chart-container').addEventListener('mouseover', (event) => {
+            const figure = event.target.closest('.figure');
+            if (!figure) return;
+            figure.classList.add('highlight-child');
+
+            // Check for special Daughter highlighting
+            if (figure.dataset.sourceRow) {
+                const sourceRow = figure.dataset.sourceRow;
+                // Highlight the specific row on each of the 4 mothers
+                for (let i = 1; i <= 4; i++) {
+                    const mother = document.getElementById(`figure-${i}`);
+                    mother?.querySelector(`.figure-row[data-row-index="${sourceRow}"]`)?.classList.add('highlight-bit');
+                }
+            } else if (figure.dataset.parents) {
+                // Standard parent highlighting for other figures
+                const parentIds = figure.dataset.parents.split(',');
+                parentIds.forEach(id => document.getElementById(`figure-${id}`)?.classList.add('highlight-parent'));
+            }
+        });
+
+        document.getElementById('shield-chart-container').addEventListener('mouseout', () => {
+            document.querySelectorAll('.figure').forEach(f => f.classList.remove('highlight-child', 'highlight-parent'));
+            document.querySelectorAll('.figure-row').forEach(fr => fr.classList.remove('highlight-bit'));
+        });
+
+        resetApp();
+    });
+    </script>
+</body>
+</html>

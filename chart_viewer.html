@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cumulative Fractal Analyzer (Percent/Count)</title>
+    
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-color: #212529;
+            --primary-color: #007bff;
+            --primary-hover: #0056b3;
+            --secondary-color: #6c757d;
+            --border-color: #dee2e6;
+            --shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+        h1, h2 {
+            text-align: center;
+            margin-top: 0;
+            color: #343a40;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .control-group { display: flex; flex-direction: column; }
+        label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            color: #495057;
+        }
+        input[type="number"] {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1em;
+            width: 150px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+        }
+        button {
+            padding: 10px 25px;
+            font-size: 1em;
+            font-weight: 600;
+            color: #fff;
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover:not(:disabled) { background-color: var(--primary-hover); }
+        button:disabled { background-color: var(--secondary-color); cursor: not-allowed; }
+        
+        #status { text-align: center; padding: 15px; border-radius: 8px; }
+        .status-info { background-color: #e9ecef; border: 1px solid var(--border-color); }
+        .status-progress { background-color: #e7f3ff; border: 1px solid #cce5ff; color: #004085; }
+        .status-success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+
+        #chartContainer { display: none; }
+        #plot { width: 100%; height: 60vh; min-height: 450px; }
+        .chart-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 20px 30px; margin-top: 15px; }
+
+        /* Toggle Switch Styles */
+        .toggle-switch { display: flex; align-items: center; gap: 10px; font-weight: 500;}
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 28px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary-color); }
+        input:checked + .slider:before { transform: translateX(22px); }
+        
+        /* Export Button Styles */
+        .export-group {
+            display: flex;
+            gap: 15px;
+            padding-left: 20px; /* Add some spacing from toggles */
+        }
+        .export-group button {
+            background-color: #28a745; /* Green */
+        }
+        .export-group button:hover:not(:disabled) {
+            background-color: #218838;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card">
+            <h1>Cumulative Fractal Analyzer</h1>
+            <div class="controls">
+                <div class="control-group">
+                    <label for="startRange">Start Range:</label>
+                    <input type="number" id="startRange" value="0" min="0">
+                </div>
+                <div class="control-group">
+                    <label for="endRange">End Range:</label>
+                    <input type="number" id="endRange" value="5000" min="0">
+                </div>
+                <div class="control-group">
+                    <button id="generateBtn">Generate & View Chart</button>
+                </div>
+            </div>
+            <p id="status" class="status status-info">Enter a range and click "Generate" to begin.</p>
+        </div>
+
+        <div class="card" id="chartContainer">
+            <h2>Analysis Results</h2>
+            <div id="plot"></div>
+            <div class="chart-controls">
+                <div class="toggle-switch">
+                    <span>Percent</span>
+                    <label class="switch">
+                        <input type="checkbox" id="yAxisModeToggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span>Count</span>
+                </div>
+                <div class="toggle-switch">
+                    <span>X-Axis (Linear)</span>
+                    <label class="switch">
+                        <input type="checkbox" id="xAxisToggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span>Log</span>
+                </div>
+                <div class="toggle-switch">
+                    <span>Y-Axis (Linear)</span>
+                    <label class="switch">
+                        <input type="checkbox" id="yAxisToggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span>Log</span>
+                </div>
+                
+                <div class="export-group">
+                    <button id="exportCumulativeBtn" disabled>Export Cumulative (CSV)</button>
+                    <button id="exportIndividualBtn" disabled>Export Individual (CSV)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const generateBtn = document.getElementById('generateBtn');
+        const statusDiv = document.getElementById('status');
+        const chartContainer = document.getElementById('chartContainer');
+        const plotDiv = document.getElementById('plot');
+        const yAxisModeToggle = document.getElementById('yAxisModeToggle');
+        const xAxisToggle = document.getElementById('xAxisToggle');
+        const yAxisToggle = document.getElementById('yAxisToggle');
+        // NEW: Export buttons
+        const exportCumulativeBtn = document.getElementById('exportCumulativeBtn');
+        const exportIndividualBtn = document.getElementById('exportIndividualBtn');
+
+        // Store chart data globally to easily update scales
+        let chartDataStore = null;
+        // NEW: Store individual results
+        let individualDataStore = null;
+
+        // --- WEB WORKER SETUP ---
+        const workerCode = `
+            // --- CORE ANALYSIS LOGIC ---
+            function rotateGrid(grid, angle) {
+                const size = grid.length;
+                const rotated = Array.from({ length: size }, () => Array(size));
+                for (let i = 0; i < size; i++) for (let j = 0; j < size; j++) {
+                    if (angle === 90) rotated[i][j] = grid[size - 1 - j][i];
+                    else if (angle === 180) rotated[i][j] = grid[size - 1 - i][size - 1 - j];
+                    else if (angle === 270) rotated[i][j] = grid[j][size - 1 - i];
+                }
+                return rotated;
+            }
+            function binaryGridToDecimal(grid) { return parseInt(grid[0].join(''), 2); }
+            function analyzeFractal(num) {
+                const binaryStr = num.toString(2);
+                if (num === 0) return { number: 0, uniqueRotations: 1, isFullRegister: false, palindromicType: 'none' };
+                const size = binaryStr.length;
+                const grid = Array.from({ length: size }, (_, i) => Array.from({ length: size }, (_, j) => (parseInt(binaryStr[i]) ^ parseInt(binaryStr[j])) ? 0 : 1));
+                const rotationValues = [binaryGridToDecimal(grid), binaryGridToDecimal(rotateGrid(grid, 90)), binaryGridToDecimal(rotateGrid(grid, 180)), binaryGridToDecimal(rotateGrid(grid, 270))];
+                const uniqueValues = new Set(rotationValues).size;
+                const isFullRegister = (num > 0) && ((num + 1) & num) === 0;
+                let palindromicType = 'none';
+                if (!isFullRegister && size > 1 && size % 2 === 0) {
+                    const mid = size / 2;
+                    const firstHalf = binaryStr.substring(0, mid);
+                    const secondHalf = binaryStr.substring(mid);
+                    const reversedFirst = firstHalf.split('').reverse().join('');
+                    const invertedReversedFirst = reversedFirst.split('').map(b => b === '1' ? '0' : '1').join('');
+                    if (secondHalf === firstHalf) palindromicType = 'tandem';
+                    else if (secondHalf === reversedFirst) palindromicType = 'standard';
+                    else if (secondHalf === invertedReversedFirst) palindromicType = 'contra';
+                }
+                return { number: num, uniqueRotations: uniqueValues, isFullRegister, palindromicType };
+            }
+
+            // --- CUMULATIVE ANALYSIS (WORKER) ---
+            self.onmessage = function(e) {
+                const { start, end } = e.data;
+                
+                // MODIFIED: Two arrays to store data
+                const cumulativeResults = [];
+                const individualResults = [];
+                
+                const counts = { total: 0, monolateral: 0, bilateral: 0, quadrilateral: 0, bilateralEven: 0, bilateralOdd: 0, fullRegister: 0, tandem: 0, standard: 0, contra: 0 };
+                
+                for (let i = start; i <= end; i++) {
+                    const result = analyzeFractal(i);
+                    
+                    // NEW: Store individual result
+                    individualResults.push(result);
+                    
+                    // Update cumulative counts
+                    counts.total++;
+                    if (result.uniqueRotations === 1) counts.monolateral++;
+                    else if (result.uniqueRotations === 2) { counts.bilateral++; if (result.number % 2 === 0) counts.bilateralEven++; else counts.bilateralOdd++; }
+                    else if (result.uniqueRotations === 4) counts.quadrilateral++;
+                    if (result.isFullRegister) counts.fullRegister++;
+                    if (result.palindromicType === 'tandem') counts.tandem++;
+                    if (result.palindromicType === 'standard') counts.standard++;
+                    if (result.palindromicType === 'contra') counts.contra++;
+                    
+                    const toPercent = (count) => (counts.total > 0) ? (count / counts.total * 100) : 0;
+                    
+                    // Store cumulative snapshot
+                    cumulativeResults.push({
+                        rangeEnd: i,
+                        // Percentages (suffix '_p')
+                        mono_p: toPercent(counts.monolateral),
+                        bi_p: toPercent(counts.bilateral),
+                        quad_p: toPercent(counts.quadrilateral),
+                        biEven_p: toPercent(counts.bilateralEven),
+                        biOdd_p: toPercent(counts.bilateralOdd),
+                        fullReg_p: toPercent(counts.fullRegister),
+                        tandem_p: toPercent(counts.tandem),
+                        standard_p: toPercent(counts.standard),
+                        contra_p: toPercent(counts.contra),
+                        // Counts (suffix '_c')
+                        mono_c: counts.monolateral,
+                        bi_c: counts.bilateral,
+                        quad_c: counts.quadrilateral,
+                        biEven_c: counts.bilateralEven,
+                        biOdd_c: counts.bilateralOdd,
+                        fullReg_c: counts.fullRegister,
+                        tandem_c: counts.tandem,
+                        standard_c: counts.standard,
+                        contra_c: counts.contra
+                    });
+
+                    if (i > 0 && i % 500 === 0) {
+                        self.postMessage({ type: 'progress', message: \`Processing... analyzed \${i} of \${end} numbers.\` });
+                    }
+                }
+                // MODIFIED: Send both data arrays
+                self.postMessage({ type: 'complete', cumulativeData: cumulativeResults, individualData: individualResults });
+            };
+        `;
+
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const worker = new Worker(URL.createObjectURL(blob));
+
+        // --- EVENT LISTENERS ---
+        generateBtn.addEventListener('click', () => {
+            const start = parseInt(document.getElementById('startRange').value);
+            const end = parseInt(document.getElementById('endRange').value);
+
+            if (isNaN(start) || isNaN(end) || end < start) {
+                updateStatus("⚠️ Please enter a valid range where Start ≤ End.", "status-info");
+                return;
+            }
+            if (end - start > 20000) {
+                if (!confirm("This is a very large range and may be slow. Continue?")) return;
+            }
+
+            generateBtn.disabled = true;
+            // NEW: Disable export buttons on new run
+            exportCumulativeBtn.disabled = true;
+            exportIndividualBtn.disabled = true;
+            chartContainer.style.display = 'none';
+            updateStatus("⚙️ Starting analysis...", "status-progress");
+            worker.postMessage({ start, end });
+        });
+        
+        yAxisModeToggle.addEventListener('change', drawChart);
+        xAxisToggle.addEventListener('change', updateAxisScales);
+        yAxisToggle.addEventListener('change', updateAxisScales);
+
+        // NEW: Export button listeners
+        exportCumulativeBtn.addEventListener('click', () => {
+            if (chartDataStore) {
+                downloadCSV(chartDataStore, 'cumulative_analysis.csv');
+            } else {
+                alert('No cumulative data to export.');
+            }
+        });
+
+        exportIndividualBtn.addEventListener('click', () => {
+            if (individualDataStore) {
+                downloadCSV(individualDataStore, 'individual_analysis.csv');
+            } else {
+                alert('No individual data to export.');
+            }
+        });
+
+        // --- WORKER MESSAGE HANDLER ---
+        worker.onmessage = function(e) {
+            const { type, message, cumulativeData, individualData } = e.data;
+            if (type === 'progress') {
+                updateStatus(`⚙️ ${message}`, "status-progress");
+            } else if (type === 'complete') {
+                generateBtn.disabled = false;
+                updateStatus("✅ Analysis complete! You can now interact with the chart.", "status-success");
+                
+                // MODIFIED: Store both datasets
+                chartDataStore = cumulativeData;
+                individualDataStore = individualData;
+                
+                // NEW: Enable export buttons
+                exportCumulativeBtn.disabled = false;
+                exportIndividualBtn.disabled = false;
+                
+                drawChart();
+            }
+        };
+
+        // --- CHARTING FUNCTIONS ---
+        function drawChart() {
+            if (!chartDataStore) return;
+            chartContainer.style.display = 'block';
+
+            const modeSuffix = yAxisModeToggle.checked ? '_c' : '_p';
+            const unpack = (rows, key) => rows.map(row => row[key]);
+
+            const traces = [
+                { x: unpack(chartDataStore, 'rangeEnd'), y: unpack(chartDataStore, 'mono' + modeSuffix), name: 'Monolateral', mode: 'lines' },
+                { x: unpack(chartDataStore, 'rangeEnd'), y: unpack(chartDataStore, 'bi' + modeSuffix), name: 'Bilateral', mode: 'lines' },
+                { x: unpack(chartDataStore, 'rangeEnd'), y: unpack(chartDataStore, 'quad' + modeSuffix), name: 'Quadrilateral', mode: 'lines' },
+                { x: unpack(chartDataStore, 'rangeEnd'), y: unpack(chartDataStore, 'fullReg' + modeSuffix), name: 'Full Register', mode: 'lines', visible: 'legendonly' },
+                { x: unpack(chartDataStore, 'rangeEnd'), y: unpack(chartDataStore, 'biEven' + modeSuffix), name: 'Bilateral (Even)', mode: 'lines', visible: 'legendonly' },
+                { x: unpack(chartDataStore, 'rangeEnd'), y: unpack(chartDataStore, 'biOdd' + modeSuffix), name: 'Bilateral (Odd)', mode: 'lines', visible: 'legendonly' },
+                { x: unpack(chartDataStore, 'rangeEnd'), y: unpack(chartDataStore, 'tandem' + modeSuffix), name: 'Tandem', mode: 'lines', visible: 'legendonly' },
+                { x: unpack(chartDataStore, 'rangeEnd'), y: unpack(chartDataStore, 'standard' + modeSuffix), name: 'Standard', mode: 'lines', visible: 'legendonly' },
+                { x: unpack(chartDataStore, 'rangeEnd'), y: unpack(chartDataStore, 'contra' + modeSuffix), name: 'Contra', mode: 'lines', visible: 'legendonly' },
+            ];
+
+            const layout = {
+                title: 'Evolution of Number Type Proportions',
+                xaxis: {
+                    title: 'Cumulative Range End',
+                    type: xAxisToggle.checked ? 'log' : 'linear',
+                    autorange: true
+                },
+                yaxis: {
+                    title: yAxisModeToggle.checked ? 'Total Count' : 'Proportion (%)',
+                    type: yAxisToggle.checked ? 'log' : 'linear',
+                    autorange: true
+                },
+                hovermode: 'x unified',
+                legend: { traceorder: 'normal' }
+            };
+
+            const config = {
+                responsive: true,
+                scrollZoom: true
+            };
+
+            Plotly.newPlot(plotDiv, traces, layout, config);
+        }
+
+        function updateAxisScales() {
+            if (!chartDataStore) return;
+            const update = {
+                'xaxis.type': xAxisToggle.checked ? 'log' : 'linear',
+                'yaxis.type': yAxisToggle.checked ? 'log' : 'linear'
+            };
+            Plotly.relayout(plotDiv, update);
+        }
+
+        function updateStatus(message, className) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${className}`;
+        }
+        
+        // --- NEW: CSV EXPORT FUNCTION ---
+        function downloadCSV(data, filename) {
+            if (!data || data.length === 0) {
+                alert("No data available to export.");
+                return;
+            }
+
+            // Function to handle escaping for CSV
+            const escapeCSV = (val) => {
+                if (val === null || val === undefined) return '';
+                let str = String(val);
+                // If the string contains a comma, double quote, or newline, wrap it in double quotes
+                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    // Also double up any existing double quotes
+                    str = '"' + str.replace(/"/g, '""') + '"';
+                }
+                return str;
+            };
+
+            const headers = Object.keys(data[0]);
+            const csvRows = [headers.join(',')]; // Header row
+
+            // Data rows
+            for (const row of data) {
+                const values = headers.map(header => escapeCSV(row[header]));
+                csvRows.push(values.join(','));
+            }
+
+            const csvString = csvRows.join('\n');
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+
+            // Create a link and trigger the download
+            const link = document.createElement('a');
+            if (link.download !== undefined) { // Feature detection
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } else {
+                alert("Your browser doesn't support automatic downloading. Please update your browser.");
+            }
+        }
+    </script>
+
+</body>
+</html>
