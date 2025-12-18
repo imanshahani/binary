@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuadTree: Binary Fractal v10.2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; color: #1f2937; }
+        .sidebar { width: 300px; height: 100vh; position: fixed; top: 0; left: 0; background: #fff; border-right: 1px solid #e5e7eb; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; }
+        .main-content { margin-left: 300px; padding: 32px; }
+        .branch-link { display: block; padding: 10px 16px; border-radius: 8px; font-weight: 500; color: #374151; cursor: pointer; transition: all 0.2s; }
+        .branch-link:hover { background-color: #f3f4f6; }
+        .branch-link.active { background-color: #c62828; color: #fff; font-weight: 600; }
+        
+        .leaf-card { background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.2s; border: 1px solid transparent; position: relative; overflow: hidden; }
+        .leaf-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: #fecaca; }
+        
+        .leaf-trait { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; margin-right: 4px; margin-bottom: 4px; }
+        .leaf-trait.unclassified { background-color: #fef3c7; color: #92400e; }
+        .leaf-trait.q-leaf { background-color: #ede7f6; color: #311b92; border: 1px solid #b39ddb; }
+        .leaf-trait.c-leaf { background-color: #e0f2f1; color: #004d40; border: 1px solid #80cbc4; }
+        .leaf-trait.l-leaf { background-color: #fff7ed; color: #9a3412; border: 1px solid #ffedd5; }
+        .leaf-trait.p-leaf { background-color: #fce4ec; color: #880e4f; border: 1px solid #f48fb1; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 50; }
+        .modal-content { background: white; padding: 2rem; border-radius: 0.75rem; max-width: 1000px; width: 95%; max-height: 95vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .chart-container { position: relative; height: 300px; width: 100%; margin-top: 10px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; background: #fff; }
+        
+        /* Math Styling */
+        .math-block { font-family: 'Courier New', monospace; background: #f9fafb; padding: 8px 12px; border-radius: 6px; border: 1px solid #e5e7eb; margin-top: 4px; display: block; overflow-x: auto; font-size: 0.9em; color: #374151; }
+        .math-var { font-weight: bold; font-style: italic; font-family: serif; }
+        .math-val { color: #b91c1c; font-weight: 600; }
+        
+        /* Typography for Guide */
+        .guide-section { margin-bottom: 2rem; border-bottom: 1px solid #eee; padding-bottom: 1rem; }
+        .guide-section:last-child { border-bottom: none; }
+        .guide-title { font-weight: 700; color: #111827; font-size: 1.1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .guide-desc { color: #4b5563; font-size: 0.9rem; margin-bottom: 0.5rem; line-height: 1.5; }
+
+        .sidebar::-webkit-scrollbar { width: 6px; } .sidebar::-webkit-scrollbar-track { background: #f1f1f1; } .sidebar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">QuadTree</h1>
+            <p class="text-xs text-purple-700 font-bold mb-4 uppercase tracking-wider">Binary Fractal v10.2</p>
+            <button id="openGuideBtn" class="w-full mb-6 bg-gray-800 hover:bg-gray-900 text-white text-sm py-2 px-3 rounded-md transition flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Taxonomy Guide
+            </button>
+            <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">The Trunk</h2>
+            <div id="tree-controls" class="space-y-1"><a class="branch-link" data-branch="All">Show All Branches</a></div>
+            <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-6 mb-3">The Branches</h2>
+        </div>
+        <div id="branch-list" class="space-y-1 flex-grow"></div>
+    </aside>
+
+    <main class="main-content">
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Max Number (N)</label>
+                    <input type="number" id="maxLimit" value="256" min="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Filter Category</label>
+                    <select id="leafFilter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm"></select>
+                </div>
+                <div><button id="scanButton" class="w-full bg-red-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-800 transition">Scan & Group</button></div>
+            </div>
+            <div id="summary" class="mt-4 text-sm text-gray-600"></div>
+        </div>
+
+        <h2 class="text-2xl font-semibold text-gray-900 mb-1">Displaying: <span id="branch-title" class="text-red-700">All</span></h2>
+        <p class="mb-6 text-gray-500">Found <span id="leaf-count">0</span> unique C-Founders.</p>
+        <div id="leaf-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+    </main>
+
+    <div id="familyModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4"><h3 class="text-2xl font-semibold" id="modal-title">Family Details</h3><button id="closeModal" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button></div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div id="modal-body" class="space-y-4"></div>
+                
+                <div>
+                    <h4 class="font-bold text-gray-800 mb-2">Singularity Field (Parabolic Spine)</h4>
+                    <p class="text-xs text-gray-500 mb-2">Shaded region indicates the Mean Parabolic Field.</p>
+                    <div class="chart-container"><canvas id="gapChart"></canvas></div>
+                    <div id="gap-equations" class="mt-2 text-xs"></div> 
+                    
+                    <h4 class="font-bold text-gray-800 mt-8 mb-2">Double-Well Potential V(x)</h4>
+                    <p class="text-xs text-gray-500 mb-2">Standard Symmetry Breaking.</p>
+                    <div class="chart-container" style="height: 250px;"><canvas id="familyChart"></canvas></div>
+                    <div id="potential-equations" class="mt-2 text-xs"></div> 
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="guideModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="flex justify-between items-center mb-6"><h3 class="text-2xl font-bold text-gray-900">Taxonomy Guide</h3><button id="closeGuide" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button></div>
+            <div class="space-y-2 overflow-y-auto pr-2" style="max-height: 70vh;">
+                
+                <div class="guide-section">
+                    <div class="guide-title"><span class="leaf-trait q-leaf px-3 py-1 text-sm">Q-Leaf</span> The "Curve Benders"</div>
+                    <p class="guide-desc">
+                        Q-Leaves follow a linear orbital prediction but deviate by a specific power of two. They represent stable "orbits" around a linear trajectory.
+                        <br>
+                        <span class="math-block">b = (Slope &times; a) + Offset &plusmn; K</span>
+                    </p>
+                    <div class="text-sm bg-gray-50 p-3 rounded text-gray-600">
+                        <strong>K (Deviation):</strong> Must be a Power of 2 (1, 2, 4, 8...).<br>
+                        <strong>Slope (S):</strong> An integer multiplier.<br>
+                        <strong>Offset (O):</strong> A positional shift (usually S-1).
+                    </div>
+                </div>
+
+                <div class="guide-section">
+                    <div class="guide-title"><span class="leaf-trait p-leaf px-3 py-1 text-sm">P-Leaf</span> The "Perfect Doublers"</div>
+                    <p class="guide-desc">
+                        A direct harmonic expansion. The value <i>c</i> is a perfect binary multiple of <i>a</i>. These are the "purest" structures in the system.
+                    </p>
+                    <span class="math-block">c = a &times; 2<sup>n</sup></span>
+                </div>
+
+                <div class="guide-section">
+                    <div class="guide-title"><span class="leaf-trait c-leaf px-3 py-1 text-sm">C-Leaf</span> The "Cryptids"</div>
+                    <p class="guide-desc">
+                        Families where the growth matches a Mersenne Prime structure. These are "near-misses" of P-Leaves, governed by the (2<sup>n</sup> - 1) rule.
+                    </p>
+                    <span class="math-block">b = a &times; (2<sup>n</sup> - 1)</span>
+                </div>
+
+                <div class="guide-section">
+                    <div class="guide-title"><span class="leaf-trait l-leaf px-3 py-1 text-sm">Linear (Strong)</span> Structural Beams</div>
+                    <p class="guide-desc">
+                        A linear progression where the gap <i>D</i> is strongly bound to the binary lattice. The gap is divisible by 4, 8, 16, etc.
+                    </p>
+                    <span class="math-block">D = b - a = m &times; 2<sup>k</sup> (where k > 1)</span>
+                </div>
+
+                <div class="guide-section">
+                    <div class="guide-title"><span class="leaf-trait l-leaf px-3 py-1 opacity-75 text-sm">Linear (Weak)</span> Minimal Survivors</div>
+                    <p class="guide-desc">
+                        Linear progressions that satisfy the bare minimum integer constraint (even numbers). They are weakly bound to the lattice.
+                    </p>
+                    <span class="math-block">D = b - a = m &times; 2<sup>1</sup> (Only divisible by 2)</span>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let rawFamilies = [], groupedData = [], knownLeaves = new Set();
+        let currentBranch = "All", currentLeafFilter = "All";
+        let fibonacciSet = new Set(), currentChart = null, currentGapChart = null;
+
+        const toBinary = (n, k) => n.toString(2).padStart(k, '0');
+        const binToDec = (s) => parseInt(s, 2);
+        const isPowerOfTwo = (n) => n > 0 && (n & (n - 1)) === 0;
+        const isMersenneNumber = (n) => n > 0 && Number.isInteger(Math.log2(n + 1));
+        const getK = (n) => {
+            if (n===0) return 0;
+            return Math.ceil(Math.log2(n + 1));
+        };
+        const formatNum = (n) => {
+            if (Math.abs(n) < 0.0001) return n.toExponential(4);
+            return parseFloat(n.toFixed(6)); 
+        };
+
+        // --- MATH UTILS ---
+        function getPrimeFactors(n) {
+            const factors = [];
+            let divisor = 3;
+            let temp = n;
+            while (temp >= 2 && (temp % 2 === 0)) { factors.push(2); temp /= 2; }
+            while (divisor * divisor <= temp) {
+                while (temp % divisor === 0) {
+                    factors.push(divisor);
+                    temp /= divisor;
+                }
+                divisor += 2;
+            }
+            if (temp > 1) factors.push(temp);
+            return factors;
+        }
+
+        function generateMatrix(s) {
+            const k = s.length, matrix = []; const b1 = s.charAt(0); const s_inv = s.split('').map(b => (b === '1' ? '0' : '1')).join('');
+            for (let i = 0; i < k; i++) { if (s.charAt(i) === b1) matrix.push(s.split('')); else matrix.push(s_inv.split('')); }
+            return matrix;
+        }
+        function getRotationalFamily(matrix) {
+            const k = matrix.length; let m90=[], m180=[], m270=[];
+            for(let i=0; i<k; i++) { m90.push(new Array(k)); m180.push(new Array(k)); m270.push(new Array(k)); }
+            for (let i = 0; i < k; i++) { for (let j = 0; j < k; j++) { m90[i][j] = matrix[k - 1 - j][i]; m180[i][j] = matrix[k - 1 - i][k - 1 - j]; m270[i][j] = matrix[j][k - 1 - i]; } }
+            return [binToDec(matrix[0].join('')), binToDec(m90[0].join('')), binToDec(m180[0].join('')), binToDec(m270[0].join(''))];
+        }
+        function getBranchFromSum(sum) {
+            const power = Math.log2(sum + 1);
+            if (Number.isInteger(power)) return "M" + power;
+            return "Unknown";
+        }
+        function generateFibonacciSet(max) {
+            fibonacciSet.clear(); let a = 0, b = 1; while (b <= max) { fibonacciSet.add(b); let temp = a + b; a = b; b = temp; }
+        }
+        
+        function getLinearAnalysis(D) {
+            let n = D; let power = 0;
+            while (n > 0 && n % 2 === 0) { n = n / 2; power++; }
+            return { 
+                residue: n, 
+                strength: power,
+                isStrong: power > 1
+            };
+        }
+
+        // --- MATH UTILS FOR PARABOLAS ---
+        function getParabolaA(pStart, vertex) {
+            const denom = Math.pow(pStart.x - vertex.x, 2);
+            if (denom < 1e-9) return 0;
+            return (pStart.y - vertex.y) / denom;
+        }
+
+        function generateExtrapolatedParabola(pTarget, vertex, xLimit, isLeft) {
+            const path = [];
+            const a = getParabolaA(pTarget, vertex);
+            const steps = 50;
+            if (isLeft) {
+                for(let i=0; i<=steps; i++) {
+                    const x = xLimit + (vertex.x - xLimit) * (i/steps);
+                    const y = a * Math.pow(x - vertex.x, 2) + vertex.y;
+                    path.push({x, y});
+                }
+            } else {
+                for(let i=0; i<=steps; i++) {
+                    const x = vertex.x + (xLimit - vertex.x) * (i/steps);
+                    const y = a * Math.pow(x - vertex.x, 2) + vertex.y;
+                    path.push({x, y});
+                }
+            }
+            return path;
+        }
+
+        // --- TAXONOMY LOGIC ---
+        function getLeavesForFamily(family, N, sum) {
+            const leaves = []; const [a, b, c, d] = family; let isClassified = false;
+            
+            if (a === 1 && isPowerOfTwo(N)) leaves.push("Power-of-2 Founder");
+            
+            const a2 = a*a, b2 = b*b, c2 = c*c, d2 = d*d;
+            if (a > 0 && (a2 + b2 + c2 === d2)) { leaves.push(`Pyth. Quadruple`); isClassified = true; }
+            else if (a > 0 && b > 0 && c > 0 && (a2 + b2 === c2)) { leaves.push(`Pyth. Triple`); isClassified = true; }
+            else if (!isClassified && fibonacciSet.has(a) && fibonacciSet.has(b) && fibonacciSet.has(c) && fibonacciSet.has(d)) { leaves.push("Fibonacci Family"); isClassified = true; }
+            
+            // P-Leaves
+            if (!isClassified && a > 0 && c % a === 0) { const k = c / a; if (isPowerOfTwo(k)) { leaves.push(`P-Leaf (c=${k}a)`); isClassified = true; } }
+            
+            // C-Leaves
+            if (!isClassified && a > 0 && b % a === 0) { const k = b / a; if (k > 1 && isMersenneNumber(k)) { leaves.push(`C-Leaf (Mersenne x${k})`); isClassified = true; } }
+            
+            // Q-Leaves
+            let isQLeaf = false;
+            for (let s = 0; s <= 8; s++) { 
+                const slope = 1 << s; 
+                const offset = slope - 1; 
+                const target = (slope * a) + offset; 
+                const diff = b - target;
+                const K = Math.abs(diff);
+
+                if (K > 0 || (s===0 && K > 0)) { 
+                    const validPow2 = isPowerOfTwo(K); 
+                    const validTriRes = (K % 3 === 0) && isPowerOfTwo(K / 3);
+                    
+                    if (validPow2 || validTriRes) { 
+                        const sign = (diff >= 0) ? '+' : '-';
+                        leaves.push(`Q-Leaf (${offset}${sign}K)`); 
+                        isQLeaf = true; 
+                    }
+                }
+            }
+            if (isQLeaf) isClassified = true;
+
+            // Linear Leaves
+            if (!isClassified) {
+                const D = b - a; 
+                if (D > 0 && d - c === D) {
+                    const analysis = getLinearAnalysis(D);
+                    if (analysis.isStrong) {
+                         leaves.push(`Linear (Strong Binding)`);
+                    } else {
+                         leaves.push(`Linear (Weak)`);
+                    }
+                    isClassified = true;
+                }
+            }
+            if (!isClassified) leaves.push("Unclassified");
+            leaves.forEach(leaf => knownLeaves.add(leaf));
+            return leaves;
+        }
+
+        // --- PROOF GENERATION ---
+        function generateProofHTML(v) {
+            let html = "";
+            const [a, b, c, d] = v.family;
+            
+            // 1. LINEAR PROOF
+            const linLeaf = v.leaves.find(l => l.includes('Linear'));
+            if (linLeaf) {
+                const D = b - a;
+                const analysis = getLinearAnalysis(D);
+                const binaryD = D.toString(2);
+                const splitIdx = binaryD.length - analysis.strength;
+                const binaryVis = binaryD.substring(0, splitIdx) + `<span class="text-red-600 font-bold">${binaryD.substring(splitIdx)}</span>`;
+                
+                // NEW: Get Prime Factors of residue
+                const primes = getPrimeFactors(analysis.residue);
+                const primeStr = primes.length > 0 ? primes.join(' &times; ') : '1';
+                
+                html += `<div class="mb-3 p-3 ${analysis.isStrong ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'} border rounded">`;
+                html += `<h5 class="font-bold ${analysis.isStrong ? 'text-orange-800' : 'text-gray-700'} text-sm">${analysis.isStrong ? 'Strong' : 'Weak'} Linear Gap</h5>`;
+                
+                html += `<div class="math-block">`;
+                html += `D = b - a = ${D}<br>`;
+                html += `D = 2<sup>${analysis.strength}</sup> &times; ${primeStr}`;
+                html += `</div>`;
+                
+                html += `<div class="mt-2 text-xs text-gray-500">Binary Lattice Alignment (Trailing Zeros):</div>`;
+                html += `<div class="text-lg tracking-widest mt-1 font-mono">${binaryVis}</div>`;
+                html += `</div>`;
+            }
+
+            // 2. Q-LEAF PROOFS
+            const qLeaves = v.leaves.filter(l => l.includes('Q-Leaf'));
+            qLeaves.forEach(tag => {
+                const regex = /\((\d+)([+-])K\)/;
+                const match = tag.match(regex);
+                if (match) {
+                    const offset = parseInt(match[1]);
+                    const sign = match[2];
+                    const slope = offset + 1;
+                    const predicted = (slope * a) + offset;
+                    const diff = b - predicted;
+                    
+                    html += `<div class="mb-3 p-3 bg-purple-50 border border-purple-200 rounded">`;
+                    html += `<h5 class="font-bold text-purple-800 text-sm">Q-Orbital Proof [Slope ${slope}]</h5>`;
+                    
+                    html += `<div class="text-xs text-gray-600 mb-2">Testing Orbital Alignment (Slope=${slope}, Offset=${offset})</div>`;
+                    
+                    html += `<div class="math-block">`;
+                    html += `b<sub>expected</sub> = (${slope} &times; a) + ${offset} = <span class="math-val">${predicted}</span><br>`;
+                    html += `K = b<sub>actual</sub> - b<sub>expected</sub> = ${b} - ${predicted} = <span class="math-val">${diff}</span>`;
+                    html += `</div>`;
+                    
+                    html += `<div class="mt-2 text-xs text-purple-700 font-semibold border-t border-purple-200 pt-1">Deviation K=${diff} matches tag <strong>Q-Leaf (${offset}${sign}K)</strong></div>`;
+                    html += `</div>`;
+                }
+            });
+
+            // 3. P-LEAF PROOF
+            if (v.leaves.some(l => l.includes('P-Leaf'))) {
+                const ratio = c / a;
+                html += `<div class="mb-3 p-3 bg-blue-50 border border-blue-200 rounded">`;
+                html += `<h5 class="font-bold text-blue-800 text-sm">Perfect Doubler Proof</h5>`;
+                html += `<div class="math-block">c = a &times; 2<sup>${Math.log2(ratio)}</sup> = ${c}</div></div>`;
+            }
+            
+            // 4. C-LEAF PROOF
+            if (v.leaves.some(l => l.includes('C-Leaf'))) {
+                 const ratio = b / a;
+                 html += `<div class="mb-3 p-3 bg-teal-50 border border-teal-200 rounded">`;
+                 html += `<h5 class="font-bold text-teal-800 text-sm">Cryptid (Mersenne) Proof</h5>`;
+                 html += `<div class="math-block">b = a &times; (2<sup>${Math.log2(ratio+1)}</sup> - 1) = ${b}</div></div>`;
+            }
+
+            return html;
+        }
+
+        // --- EQUATION GENERATOR ---
+        function getEquationsForRightColumn(group) {
+            const v0 = group.versions[0];
+            const [a, b, c, d] = v0.family.sort((x,y) => x-y);
+            const k = v0.k; 
+            const singX = Math.pow(2, k-1) - 0.5;
+            const singY = Math.pow(2, k+1) - 1;
+            
+            const Ka = Math.pow(2, getK(a)); 
+            const Kb = Math.pow(2, getK(b));
+            
+            const aOuter = getParabolaA({x:a, y:Ka}, {x:singX, y:singY});
+            const aInner = getParabolaA({x:b, y:Kb}, {x:singX, y:singY});
+            
+            const midL = { x: (a+b)/2, y: (Ka+Kb)/2 };
+            const aSpine = getParabolaA(midL, {x:singX, y:singY});
+
+            const L1 = (a + b) / 2; const L2 = (c + d) / 2; const G = (L1 + L2) / 2; const R = (L2 - L1) / 2;
+
+            return {
+                parabola: `
+                    <div class="bg-gray-100 p-2 rounded text-xs font-mono border border-gray-200">
+                        <div class="mb-2 text-gray-700 font-bold border-b border-gray-300 pb-1">Vertex Definition</div>
+                        <div class="mb-3 text-gray-600">
+                            V = [(2<sup>k-1</sup>) - 2<sup>-1</sup>, (2<sup>k+1</sup>) - 2<sup>0</sup>]<br>
+                            or V = [S/2, 2S+1]
+                        </div>
+                        <div class="mb-2 text-gray-700 font-bold border-b border-gray-300 pb-1">Field Equations</div>
+                        <div class="mb-1"><span class="text-blue-600 font-bold">Outer:</span> y &asymp; ${formatNum(aOuter)}(x - ${singX})<sup>2</sup> + ${singY}</div>
+                        <div class="mb-1"><span class="text-orange-600 font-bold">Mean:</span> y &asymp; ${formatNum(aSpine)}(x - ${singX})<sup>2</sup> + ${singY}</div>
+                        <div><span class="text-red-600 font-bold">Inner:</span> y &asymp; ${formatNum(aInner)}(x - ${singX})<sup>2</sup> + ${singY}</div>
+                    </div>
+                `,
+                potential: `
+                    <div class="bg-gray-100 p-2 rounded text-xs font-mono border border-gray-200">
+                        <div class="mb-1 text-gray-500">Quartic Double-Well (G=${G}, R=${R})</div>
+                        <div>V(x) &propto; ((x - ${G})<sup>2</sup> - ${R}<sup>2</sup>)<sup>2</sup></div>
+                    </div>
+                `
+            };
+        }
+
+        // --- RENDER GRAPHS ---
+        function renderGraphs(group) {
+            const ctx = document.getElementById('familyChart').getContext('2d');
+            const gapCtx = document.getElementById('gapChart').getContext('2d');
+            if (currentChart) currentChart.destroy(); 
+            if (currentGapChart) currentGapChart.destroy();
+
+            const v0 = group.versions[0];
+            const [a, b, c, d] = v0.family.sort((x,y) => x-y);
+            const k = v0.k; 
+
+            const Ka = Math.pow(2, getK(a)); const Kb = Math.pow(2, getK(b)); 
+            const Kc = Math.pow(2, getK(c)); const Kd = Math.pow(2, getK(d));
+
+            const singularityX = Math.pow(2, k - 1) - 0.5;
+            const singularityY = Math.pow(2, k + 1) - 1;
+            const vertex = { x: singularityX, y: singularityY };
+            const xMin = 0; const xMax = Math.pow(2, k) - 1;
+
+            const outerL = generateExtrapolatedParabola({x:a, y:Ka}, vertex, xMin, true);
+            const outerR = generateExtrapolatedParabola({x:d, y:Kd}, vertex, xMax, false);
+            const innerL = generateExtrapolatedParabola({x:b, y:Kb}, vertex, xMin, true);
+            const innerR = generateExtrapolatedParabola({x:c, y:Kc}, vertex, xMax, false);
+            
+            const midL = { x: (a+b)/2, y: (Ka+Kb)/2 };
+            const midR = { x: (c+d)/2, y: (Kc+Kd)/2 };
+            const spineL = generateExtrapolatedParabola(midL, vertex, xMin, true);
+            const spineR = generateExtrapolatedParabola(midR, vertex, xMax, false);
+
+            currentGapChart = new Chart(gapCtx, {
+                type: 'scatter', 
+                data: { 
+                    datasets: [
+                        { 
+                            label: 'Outer', 
+                            data: outerL.concat(outerR), 
+                            showLine: true, 
+                            borderColor: 'rgba(37, 99, 235, 0.8)', 
+                            borderWidth: 2, 
+                            pointRadius: 0,
+                            fill: false
+                        },
+                        { 
+                            label: 'Inner', 
+                            data: innerL.concat(innerR), 
+                            showLine: true, 
+                            borderColor: 'rgba(220, 38, 38, 0.8)', 
+                            borderWidth: 2, 
+                            pointRadius: 0,
+                            fill: '-1', 
+                            backgroundColor: 'rgba(37, 99, 235, 0.15)' 
+                        },
+                        { 
+                            label: 'Mean (Spine)', 
+                            data: spineL.concat(spineR), 
+                            showLine: true, 
+                            borderColor: '#d97706', 
+                            borderWidth: 2, 
+                            borderDash: [5, 5], 
+                            pointRadius: 0,
+                            fill: false
+                        },
+                        { 
+                            label: 'Midpoints',
+                            data: [{x: midL.x, y: midL.y}, {x: midR.x, y: midR.y}],
+                            backgroundColor: '#f59e0b', 
+                            pointRadius: 5,
+                            pointStyle: 'triangle'
+                        },
+                        { 
+                            label: 'Vertex',
+                            data: [{x: vertex.x, y: vertex.y}],
+                            backgroundColor: '#7c3aed', 
+                            pointRadius: 6,
+                            pointStyle: 'rectRot'
+                        },
+                        { 
+                            label: 'Nodes', 
+                            data: [{x:a,y:Ka}, {x:b,y:Kb}, {x:c,y:Kc}, {x:d,y:Kd}], 
+                            backgroundColor: '#1f2937', 
+                            pointRadius: 6 
+                        }
+                    ] 
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: singularityY * 1.05 }, x: { min: xMin, max: xMax } }, plugins: { legend: { display: false } } }
+            });
+
+            // PHYSICS V-CURVE
+            const L1 = (a + b) / 2; const L2 = (c + d) / 2; const G = (L1 + L2) / 2; const R = (L2 - L1) / 2;
+            const curveData = []; 
+            const heightScale = 100 / Math.pow(Math.pow(R, 2), 2); 
+            
+            const Va = Math.pow(Math.pow(a - G, 2) - Math.pow(R, 2), 2) * heightScale;
+            const Vb = Math.pow(Math.pow(b - G, 2) - Math.pow(R, 2), 2) * heightScale;
+            const Vc = Math.pow(Math.pow(c - G, 2) - Math.pow(R, 2), 2) * heightScale;
+            const Vd = Math.pow(Math.pow(d - G, 2) - Math.pow(R, 2), 2) * heightScale;
+
+            for(let i=0; i<=200; i++) {
+                    const x = xMin + (xMax - xMin) * (i/200);
+                    const val = Math.pow(Math.pow(x - G, 2) - Math.pow(R, 2), 2);
+                    curveData.push({ x: x, y: val * heightScale });
+            }
+
+            currentChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        { label: 'Potential V(x)', data: curveData, showLine: true, borderColor: 'rgba(156, 163, 175, 0.5)', borderWidth: 1, pointRadius: 0, fill: true, backgroundColor: 'rgba(243, 244, 246, 0.5)' },
+                        { label: 'States', data: [{x:a,y:Va}, {x:b,y:Vb}, {x:c,y:Vc}, {x:d,y:Vd}], backgroundColor: '#dc2626', pointRadius: 5 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { display: false } }, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // --- UI RENDER ---
+        function renderGrid() {
+            const grid = document.getElementById('leaf-grid'); grid.innerHTML = ""; 
+            document.getElementById('branch-title').textContent = currentBranch;
+            
+            let filteredGroups = groupedData.filter(g => {
+                if (currentBranch !== "All" && !g.branches.includes(currentBranch)) return false;
+                
+                const allLeaves = g.versions.flatMap(v => v.leaves);
+                
+                if (currentLeafFilter === "All") return true;
+                if (currentLeafFilter === "Unclassified") return allLeaves.includes("Unclassified");
+                
+                if (currentLeafFilter === "Linear (Weak)") return allLeaves.some(l => l === "Linear (Weak)");
+                if (currentLeafFilter === "Linear (Strong Binding)") return allLeaves.some(l => l === "Linear (Strong Binding)");
+                
+                if (currentLeafFilter === "C-Leaves") return allLeaves.some(l => l.includes("C-Leaf"));
+                if (currentLeafFilter === "P-Leaves") return allLeaves.some(l => l.includes("P-Leaf"));
+                if (currentLeafFilter === "Q-Leaves") return allLeaves.some(l => l.includes("Q-Leaf"));
+                if (currentLeafFilter === "Pyth/Fib") return allLeaves.some(l => l.includes("Pyth") || l.includes("Fibonacci"));
+                
+                return false;
+            });
+            
+            document.getElementById('leaf-count').textContent = filteredGroups.length;
+            
+            filteredGroups.forEach(group => {
+                const d = document.createElement('div');
+                const v1 = group.versions[0];
+                
+                d.className = `leaf-card p-4`;
+                d.innerHTML = `
+                    <h4 class="font-bold text-red-800">Founder: ${group.founder}</h4>
+                    <p class="font-mono text-xs mt-1 text-gray-600">{${v1.family.join(', ')}}</p>
+                    <div class="mt-2 flex flex-wrap gap-1">
+                        ${v1.leaves.map(l => {
+                            let styleClass = 'c-leaf';
+                            if(l.includes('Q')) styleClass = 'q-leaf';
+                            else if(l.includes('P')) styleClass = 'p-leaf';
+                            else if(l.includes('Linear')) styleClass = l.includes('Weak') ? 'l-leaf opacity-75' : 'l-leaf font-bold border-orange-300';
+                            else if(l.includes('Unclassified')) styleClass = 'unclassified';
+                            return `<span class="leaf-trait ${styleClass}">${l}</span>`
+                        }).join('')}
+                    </div>
+                `;
+
+                d.onclick = () => {
+                    document.getElementById('familyModal').style.display='flex';
+                    
+                    let bodyHtml = `<h2 class="text-xl font-bold mb-4">Founder (C): ${group.founder}</h2>`;
+                    group.versions.forEach(v => {
+                        bodyHtml += `<div class="mb-6 bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">`;
+                        bodyHtml += `<div class="bg-gray-50 px-4 py-2 border-b border-gray-200 flex justify-between items-center"><span class="font-bold text-gray-700">Dimension K=${v.k}</span><span class="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">${v.branch}</span></div>`;
+                        bodyHtml += `<div class="p-4">`;
+                        bodyHtml += `<div class="font-mono text-lg text-gray-900 tracking-wider mb-4 text-center">{${v.family.join(', ')}}</div>`;
+                        bodyHtml += generateProofHTML(v);
+                        bodyHtml += `</div></div>`;
+                    });
+                    document.getElementById('modal-body').innerHTML = bodyHtml;
+
+                    const eqs = getEquationsForRightColumn(group);
+                    document.getElementById('gap-equations').innerHTML = eqs.parabola;
+                    document.getElementById('potential-equations').innerHTML = eqs.potential;
+
+                    setTimeout(() => renderGraphs(group), 100);
+                };
+                grid.appendChild(d);
+            });
+        }
+
+        async function runScan() {
+            const btn = document.getElementById('scanButton'); 
+            btn.disabled = true; btn.textContent = "Scanning..."; document.getElementById('summary').textContent = "Scanning..."; document.getElementById('leaf-grid').innerHTML = "";
+            setTimeout(() => {
+                const max = parseInt(document.getElementById('maxLimit').value); generateFibonacciSet(max); const start = performance.now(); 
+                rawFamilies = []; knownLeaves.clear(); const processed = new Set(); 
+                for(let n=2; n<=max; n++) { 
+                    const nativeK = n.toString(2).length; 
+                    const scanKey = n + "_" + nativeK; if(processed.has(scanKey)) continue;
+                    let fam = getRotationalFamily(generateMatrix(toBinary(n, nativeK))); let unique = new Set(fam); unique.forEach(x => processed.add(x + "_" + nativeK));
+                    if(unique.size === 4) { let sorted = fam.sort((x,y)=>x-y); const sum = sorted[0] + sorted[3]; rawFamilies.push({ N: n, k: nativeK, family: sorted, founderC: sorted[2], sum: sum, branch: getBranchFromSum(sum), leaves: getLeavesForFamily(sorted, n, sum) }); } 
+                }
+                const groupedMap = new Map(); rawFamilies.forEach(fam => { const founder = fam.founderC; if (!groupedMap.has(founder)) groupedMap.set(founder, { founder: founder, versions: [], branches: [] }); const group = groupedMap.get(founder); if (!group.versions.some(v => v.k === fam.k)) { group.versions.push(fam); group.branches.push(fam.branch); } });
+                groupedData = Array.from(groupedMap.values()).sort((a,b) => a.founder - b.founder);
+                document.getElementById('summary').textContent = `Scanned ${rawFamilies.length} families, grouped into ${groupedData.length} unique C-Founders. Time: ${((performance.now()-start)/1000).toFixed(2)}s.`;
+                btn.disabled = false; btn.textContent = "Scan & Group"; populateSidebar(); populateMainFilters(); renderGrid();
+            }, 50);
+        }
+        function populateSidebar() {
+            const branches = [...new Set(groupedData.flatMap(g => g.branches))].sort((a,b)=>{const nA=parseInt(a.substring(1)),nB=parseInt(b.substring(1));return (isNaN(nA)?1:isNaN(nB)?-1:nA-nB)});
+            const list = document.getElementById('branch-list'); list.innerHTML = "";
+            branches.forEach(b => { const link = document.createElement('a'); link.className = 'branch-link'; link.textContent = `${b} (Sum ${Math.pow(2, parseInt(b.substring(1))) - 1})`; link.onclick = () => { currentBranch = b; updateActiveBranch(link); renderGrid(); }; list.appendChild(link); });
+            const allLink = document.querySelector('.branch-link[data-branch="All"]'); if(allLink) { allLink.classList.add('active'); allLink.onclick = () => { currentBranch="All"; updateActiveBranch(allLink); renderGrid(); }}; currentBranch = "All";
+        }
+        function populateMainFilters() {
+            const select = document.getElementById('leafFilter'); select.innerHTML = '<option value="All">All Categories</option>';
+            const types = ["Unclassified", "Linear (Strong Binding)", "Linear (Weak)", "C-Leaves", "P-Leaves", "Q-Leaves", "Pyth/Fib"];
+            types.forEach(t => { const opt = document.createElement('option'); opt.value = t; opt.textContent = t; select.appendChild(opt); });
+        }
+        function updateActiveBranch(el) { document.querySelectorAll('.branch-link.active').forEach(l => l.classList.remove('active')); el.classList.add('active'); }
+        document.getElementById('scanButton').onclick = runScan;
+        document.getElementById('leafFilter').onchange = (e) => { currentLeafFilter = e.target.value; renderGrid(); };
+        
+        document.getElementById('closeModal').onclick = () => document.getElementById('familyModal').style.display='none'; 
+        document.getElementById('familyModal').onclick = (e) => { if(e.target.id==='familyModal') e.target.style.display='none'; }; 
+        document.getElementById('closeGuide').onclick = () => document.getElementById('guideModal').style.display='none'; 
+        document.getElementById('openGuideBtn').onclick = () => document.getElementById('guideModal').style.display='flex'; 
+        document.getElementById('guideModal').onclick = (e) => { if(e.target.id==='guideModal') e.target.style.display='none'; };
+        runScan();
+    </script>
+</body>
+</html>
