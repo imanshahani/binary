@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    :root {
+        --bg: #0f1115;
+        --panel: #1a1d23;
+        --text: #e0e0e0;
+        --shadow1: rgba(0, 0, 0, 0.7);
+        --shadow2: rgba(255, 255, 255, 0.03);
+        --accent: #00ff41;
+        --meta-accent: #ff9800;
+        --input-bg: #0a0c10;
+        --c-i: #90caf9; 
+        --c-n: #ffe082; 
+        --c-r: #a5d6a7; 
+        --c-ir: #ce93d8; 
+        --btn-pre: #1e3a5f; --btn-rep: #5f4b1e; --btn-app: #1e5f27; --btn-spl: #4a1e5f;
+    }
+
+    body {
+        background-color: var(--bg);
+        margin: 0; padding: 10px;
+        display: flex; justify-content: center; align-items: center;
+        min-height: 100vh; font-family: 'Courier New', Courier, monospace;
+    }
+
+    .app-container {
+        background-color: var(--panel);
+        padding: 20px; border-radius: 12px;
+        box-shadow: 10px 10px 20px var(--shadow1), -10px -10px 20px var(--shadow2);
+        width: 100%; max-width: 450px;
+        transition: max-width 0.4s ease;
+    }
+
+    .screen {
+        background: #000; border-radius: 6px; padding: 15px;
+        margin-bottom: 15px; border: 1px solid #444;
+        box-shadow: inset 0 0 15px rgba(255,152,0,0.1);
+    }
+
+    .meta {
+        display: flex; justify-content: space-between;
+        color: var(--meta-accent); font-size: 0.75rem; font-weight: 900;
+        margin-bottom: 10px;
+    }
+
+    .output {
+        color: var(--accent); font-size: 1.4rem;
+        word-break: break-all; min-height: 1.5em;
+        text-shadow: 0 0 5px var(--accent);
+    }
+
+    .mode-orchestrator {
+        display: flex; flex-direction: column; align-items: center;
+        margin-bottom: 20px; padding: 10px; border: 2px solid var(--meta-accent);
+        border-radius: 8px; background: rgba(255, 152, 0, 0.05);
+    }
+
+    .mode-toggle-btn {
+        background: var(--meta-accent); color: #000;
+        border: none; padding: 10px 20px; font-weight: 900;
+        cursor: pointer; border-radius: 4px; letter-spacing: 2px;
+        margin-bottom: 10px; width: 100%;
+    }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    
+    .wrap-scroller {
+        display: flex; gap: 12px; overflow-x: auto; 
+        padding: 10px 5px; justify-content: center;
+        scrollbar-width: thin; scrollbar-color: var(--meta-accent) #000;
+    }
+
+    .header {
+        font-size: 0.65rem; color: var(--meta-accent);
+        text-align: center; font-weight: 800;
+        border-bottom: 1px solid #444; margin-bottom: 5px;
+        text-transform: uppercase;
+    }
+
+    .btn {
+        border: none; border-radius: 4px; padding: 8px 4px;
+        font-weight: bold; font-size: 0.7rem; cursor: pointer;
+        transition: transform 0.1s; margin-bottom: 6px;
+        display: flex; justify-content: space-around; align-items: center;
+    }
+    .btn:active { transform: scale(0.95); }
+    .btn.selected { 
+        outline: 2px solid #fff; 
+        box-shadow: 0 0 12px rgba(255,255,255,0.5);
+    }
+
+    .b-pre { background: var(--btn-pre); color: var(--c-i); }
+    .b-rep { background: var(--btn-rep); color: var(--c-n); }
+    .b-app { background: var(--btn-app); color: var(--c-r); }
+    .b-spl { background: var(--btn-spl); color: var(--c-ir); }
+
+    .hidden { display: none; }
+    
+    .seg-i { color: var(--c-i); text-shadow: 0 0 8px var(--c-i); font-weight: bold; }
+    .seg-n { color: var(--c-n); text-shadow: 0 0 8px var(--c-n); font-weight: bold; }
+    .seg-r { color: var(--c-r); text-shadow: 0 0 8px var(--c-r); font-weight: bold; }
+    .seg-ir { color: var(--c-ir); text-shadow: 0 0 8px var(--c-ir); font-weight: bold; }
+    .seg-empty { color: #333; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="app-container" id="mainContainer">
+    <div class="mode-orchestrator">
+        <button class="mode-toggle-btn" onclick="toggleMode()" id="modeBtn">SWITCH TO WRAP MODE</button>
+        <div id="dimSetting" class="hidden">
+            <label style="color:var(--meta-accent); font-size:0.7rem;">DIMENSIONS: </label>
+            <input type="number" id="dimCount" value="3" min="1" max="10" onchange="initWrapColumns()" style="background:#000; color:#fff; border:1px solid var(--meta-accent); padding:2px 5px; width:50px;">
+        </div>
+    </div>
+
+    <div class="screen">
+        <div class="meta">
+            <span id="st">READY</span>
+            <span id="stats">L:1 | D:0</span>
+        </div>
+        <div class="output" id="out">0</div>
+    </div>
+
+    <div class="input-row" style="display:flex; gap:8px; margin-bottom:15px;">
+        <input type="text" id="in" value="0" style="background:var(--input-bg); border:1px solid #444; color:#fff; flex-grow:1; padding:5px;">
+        <button class="btn b-rep" style="padding:0 15px;" onclick="reset()">SET</button>
+    </div>
+
+    <div id="linearUI" class="grid">
+        <div style="display:flex; flex-direction:column;">
+            <div class="header">Prepend (+)</div>
+            <button class="btn b-pre" onclick="cm('pre','i')" onmouseenter="pre('pre','i')" onmouseleave="clr()">I <small>I+</small></button>
+            <button class="btn b-pre" onclick="cm('pre','n')" onmouseenter="pre('pre','n')" onmouseleave="clr()">INV <small>¬+</small></button>
+            <button class="btn b-pre" onclick="cm('pre','r')" onmouseenter="pre('pre','r')" onmouseleave="clr()">REV <small>~+</small></button>
+            <button class="btn b-pre" onclick="cm('pre','ir')" onmouseenter="pre('pre','ir')" onmouseleave="clr()">MIR <small>¬~+</small></button>
+        </div>
+        <div style="display:flex; flex-direction:column;">
+            <div class="header">Replace (→)</div>
+            <button class="btn b-rep" onclick="cm('rep','i')" onmouseenter="pre('rep','i')" onmouseleave="clr()">I</button>
+            <button class="btn b-rep" onclick="cm('rep','n')" onmouseenter="pre('rep','n')" onmouseleave="clr()">¬</button>
+            <button class="btn b-rep" onclick="cm('rep','r')" onmouseenter="pre('rep','r')" onmouseleave="clr()">~</button>
+            <button class="btn b-rep" onclick="cm('rep','ir')" onmouseenter="pre('rep','ir')" onmouseleave="clr()">MIR</button>
+        </div>
+        <div style="display:flex; flex-direction:column;">
+            <div class="header">Append (+)</div>
+            <button class="btn b-app" onclick="cm('app','i')" onmouseenter="pre('app','i')" onmouseleave="clr()">I <small>+I</small></button>
+            <button class="btn b-app" onclick="cm('app','n')" onmouseenter="pre('app','n')" onmouseleave="clr()">INV <small>+¬</small></button>
+            <button class="btn b-app" onclick="cm('app','r')" onmouseenter="pre('app','r')" onmouseleave="clr()">REV <small>+~</small></button>
+            <button class="btn b-app" onclick="cm('app','ir')" onmouseenter="pre('app','ir')" onmouseleave="clr()">MIR <small>+¬~</small></button>
+        </div>
+    </div>
+
+    <div id="wrapUI" class="hidden">
+        <div class="wrap-scroller" id="wrapColumnContainer"></div>
+        <button class="btn b-rep" style="width:100%; margin-top:15px; padding:12px; font-size:0.9rem;" onclick="finalizeWrap()">FINALIZE DIMENSIONAL WRAP (→)</button>
+    </div>
+
+    <div class="header" style="margin-top:20px; border:none;">Split Actions (V)</div>
+    <div id="splitZone"></div>
+</div>
+
+<script>
+    let cur = "0";
+    let isWrapMode = false;
+    let slotChoices = [];
+
+    const el = id => document.getElementById(id);
+
+    function toggleMode() {
+        isWrapMode = !isWrapMode;
+        el('linearUI').classList.toggle('hidden');
+        el('wrapUI').classList.toggle('hidden');
+        el('dimSetting').classList.toggle('hidden');
+        el('modeBtn').innerText = isWrapMode ? "EXIT WRAP MODE" : "SWITCH TO WRAP MODE";
+        el('mainContainer').style.maxWidth = isWrapMode ? "850px" : "450px";
+        if (isWrapMode) initWrapColumns();
+        else clr();
+    }
+
+    function initWrapColumns() {
+        const count = parseInt(el('dimCount').value);
+        const container = el('wrapColumnContainer');
+        container.innerHTML = "";
+        slotChoices = new Array(count).fill(null);
+        for (let i = 0; i < count; i++) {
+            const col = document.createElement('div');
+            col.style.display = "flex"; col.style.flexDirection = "column"; col.style.minWidth = "85px";
+            col.innerHTML = `<div class="header">Dim ${i+1}</div>`;
+            const ops = [{t:'i', n:'I', c:'b-pre'}, {t:'n', n:'¬', c:'b-rep'}, {t:'r', n:'~', c:'b-app'}, {t:'ir', n:'¬~', c:'b-spl'}];
+            ops.forEach(opObj => {
+                const b = document.createElement('button');
+                b.className = `btn ${opObj.c}`; b.innerText = opObj.n;
+                b.onclick = () => selectOp(i, opObj.t, b);
+                b.onmouseenter = () => updateWrapPreview(i, opObj.t);
+                b.onmouseleave = () => updateWrapPreview();
+                col.appendChild(b);
+            });
+            container.appendChild(col);
+        }
+    }
+
+    function selectOp(slotIdx, type, btnEl) {
+        const col = btnEl.parentElement;
+        col.querySelectorAll('.btn').forEach(b => b.classList.remove('selected'));
+        btnEl.classList.add('selected');
+        slotChoices[slotIdx] = type;
+        updateWrapPreview();
+    }
+
+    function updateWrapPreview(hoverIdx = null, hoverType = null) {
+        let html = "";
+        slotChoices.forEach((t, i) => {
+            let activeType = (i === hoverIdx) ? hoverType : t;
+            if (activeType) html += `<span class="seg-${activeType}">${op(cur, activeType)}</span>`;
+            else html += `<span class="seg-empty">...</span>`;
+        });
+        el('out').innerHTML = html;
+    }
+
+    function finalizeWrap() {
+        if (slotChoices.includes(null)) return;
+        let result = "";
+        slotChoices.forEach(t => result += op(cur, t));
+        cur = result;
+        upd();
+    }
+
+    function op(s, t) {
+        if (t === 'i') return s;
+        if (t === 'n') return s.split('').map(b => b === '0' ? '1' : '0').join('');
+        if (t === 'r') return s.split('').reverse().join('');
+        if (t === 'ir') return s.split('').reverse().map(b => b === '0' ? '1' : '0').join('');
+    }
+
+    function pre(a, t) {
+        let s = op(cur, t);
+        if (a === 'pre') el('out').innerHTML = `<span class="seg-i">${s}</span>` + cur;
+        if (a === 'app') el('out').innerHTML = cur + `<span class="seg-r">${s}</span>`;
+        if (a === 'rep') el('out').innerHTML = `<span class="seg-n">${s}</span>`;
+        if (a === 'spl') {
+            const f = getSPF(cur.length); const size = cur.length / f;
+            el('out').innerHTML = `<span class="seg-ir">${cur.substr(t * size, size)}</span>`;
+        }
+    }
+
+    function clr() { el('out').innerText = cur; }
+
+    function cm(a, t) {
+        let s = op(cur, t);
+        if (a === 'pre') cur = s + cur; if (a === 'app') cur = cur + s; if (a === 'rep') cur = s;
+        upd();
+    }
+
+    function getSPF(n) {
+        if (n < 2) return 1; if (n % 2 === 0) return 2;
+        for (let i = 3; i <= Math.sqrt(n); i += 2) if (n % i === 0) return i;
+        return n;
+    }
+
+    function upd() {
+        el('out').innerText = cur;
+        el('stats').innerText = `L:${cur.length} | D:${cur.length > 0 && cur.length < 50 ? BigInt("0b"+cur) : 'INF'}`;
+        const sz = el('splitZone'); sz.innerHTML = "";
+        const f = getSPF(cur.length);
+        if (cur.length > 1) {
+            for (let i = 0; i < f; i++) {
+                const b = document.createElement('button');
+                b.className = 'btn b-spl'; b.style.flex = "1 1 20%"; b.style.minWidth = "45px";
+                b.innerHTML = `V<sub>${i+1}</sub>`;
+                b.onmouseenter = () => pre('spl', i); b.onmouseleave = () => clr();
+                b.onclick = () => { const size = cur.length / f; cur = cur.substr(i * size, size); upd(); };
+                sz.appendChild(b);
+            }
+        }
+    }
+
+    function reset() { cur = el('in').value.replace(/[^01]/g, '') || "0"; upd(); }
+    upd();
+</script>
+</body>
+</html>
