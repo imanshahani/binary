@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Fractal Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- Base and Layout --- */
+        :root {
+            --bg-color: #f4f7fa;
+            --panel-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --text-muted: #718096;
+            --accent-color: #4299e1;
+            --accent-color-hover: #3182ce;
+            --danger-color: #e53e3e;
+            --warning-color: #dd6b20;
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: row;
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.07), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            overflow: hidden;
+            width: 100%;
+            max-width: 1600px;
+            margin: 20px;
+            height: calc(100vh - 40px);
+        }
+
+        /* --- Controls Panel --- */
+        .controls {
+            width: 380px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .controls-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .controls-header h1 {
+            font-size: 1.75rem;
+            margin: 0 0 4px 0;
+            font-weight: 700;
+        }
+
+        .controls-header p {
+            margin: 0;
+            color: var(--text-secondary);
+        }
+
+        .controls-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .controls-footer {
+            /* MODIFIED: Changed from column to row for better fit in the header */
+            padding: 0; /* MODIFIED: Removed padding to fit cleanly */
+            border-top: none; /* MODIFIED: Removed the border */
+            display: flex;
+            flex-direction: row; /* MODIFIED: Arrange buttons side-by-side */
+            gap: 12px;
+        }
+
+        /* --- Display Panel --- */
+        .display {
+            flex-grow: 1;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        .display-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            flex-shrink: 0;
+            /* ADDED: Add a bottom border to separate it from the canvas */
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .display-header h2 {
+            font-size: 1.5rem;
+            margin: 0;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .canvas-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background-color: #edf2f7;
+            border-radius: 8px;
+        }
+
+        #fractalCanvas {
+            background-color: #333333;
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            cursor: crosshair;
+        }
+
+        /* --- Form Elements & UI Components --- */
+        label, h3 {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            font-size: 0.875rem;
+        }
+
+        h3 {
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .input-group, .control-section {
+            display: flex;
+            flex-direction: column;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: #fff;
+            font-family: var(--font-family);
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.5);
+        }
+
+        .input-with-arrows {
+            display: flex;
+        }
+
+        .input-with-arrows input {
+            text-align: center;
+            border-left: none;
+            border-right: none;
+            border-radius: 0;
+        }
+
+        .arrow-btn {
+            width: 44px;
+            border: 1px solid var(--border-color);
+            background-color: #f9fafb;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .arrow-btn:hover { background-color: #f0f2f5; }
+        .arrow-btn:first-child { border-radius: 6px 0 0 6px; }
+        .arrow-btn:last-child { border-radius: 0 6px 6px 0; }
+
+        .decimal-display {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+            text-align: center;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            outline: none;
+            margin-top: 12px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { background: var(--accent-color-hover); }
+
+        .segmented-buttons {
+            display: flex;
+            width: 100%;
+        }
+        .segmented-btn {
+            flex-grow: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            background-color: #fff;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        .segmented-btn:not(:last-child) { border-right: none; }
+        .segmented-btn:first-child { border-radius: 6px 0 0 6px; }
+        .segmented-btn:last-child { border-radius: 0 6px 6px 0; }
+        .segmented-btn.active {
+            background-color: var(--accent-color);
+            color: #fff;
+            border-color: var(--accent-color);
+            font-weight: 600;
+        }
+        .segmented-btn:hover:not(.active) { background-color: #f4f7fa; }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            margin-top: 12px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        .checkbox-container input { display: none; }
+        .checkmark {
+            height: 20px;
+            width: 20px;
+            background-color: #fff;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            margin-right: 10px;
+            transition: all 0.2s;
+        }
+        .checkbox-container:hover .checkmark { border-color: var(--accent-color); }
+        .checkbox-container input:checked ~ .checkmark {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        .checkmark:after {
+            content: "";
+            position: relative;
+            display: none;
+            left: 6px;
+            top: 2px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 3px 3px 0;
+            transform: rotate(45deg);
+        }
+        .checkbox-container input:checked ~ .checkmark:after { display: block; }
+
+        .info-section p, .status-section p {
+            margin: 0;
+            padding: 8px 12px;
+            background-color: #f4f7fa;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        .status-section p.error { background-color: #fed7d7; color: var(--danger-color); }
+        .status-section p.warning { background-color: #feebc8; color: var(--warning-color); }
+
+        .action-btn {
+            width: auto;
+            /* MODIFIED: Reduced padding and font size for a more compact button */
+            padding: 8px 14px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .action-btn:active { transform: scale(0.98); }
+        .action-btn.primary {
+            background-color: var(--accent-color);
+            color: #fff;
+        }
+        .action-btn.primary:hover { background-color: var(--accent-color-hover); }
+        .action-btn:not(.primary) {
+            background-color: #fff;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        .action-btn:not(.primary):hover { background-color: #f9fafb; }
+
+
+        /* --- Zoom Controls --- */
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .zoom-controls span {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            min-width: 110px;
+        }
+        .zoom-btn, .zoom-presets button {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            background-color: #fff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .zoom-btn:hover, .zoom-presets button:hover {
+            background-color: #f9fafb;
+            border-color: #cbd5e0;
+        }
+        .zoom-presets { display: flex; gap: 4px; margin-left: 8px; }
+        .zoom-presets button { padding: 8px 12px; }
+
+        /* --- Disabled States --- */
+        input:disabled, button:disabled {
+            cursor: not-allowed;
+            background-color: #f4f7fa !important;
+            color: #a0aec0 !important;
+            border-color: var(--border-color) !important;
+        }
+
+        /* --- Responsive Layout --- */
+        @media (max-width: 1024px) {
+            body {
+                overflow: auto;
+                height: auto;
+            }
+            .container {
+                flex-direction: column;
+                margin: 0;
+                border-radius: 0;
+                height: 100%;
+                box-shadow: none;
+            }
+            .controls {
+                width: 100%;
+                box-sizing: border-box;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                /* MODIFIED: Reduced the max-height to give more space to the canvas */
+                max-height: 40vh; 
+            }
+            .display {
+                padding: 16px;
+            }
+            .display-header {
+                flex-direction: row; /* MODIFIED: Ensure it stays as a row */
+                align-items: center;  /* MODIFIED: Keep items vertically centered */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="controls-header">
+                <h1>Fractal Viewer</h1>
+                <p>Create and explore recursive patterns.</p>
+            </div>
+
+            <div class="controls-body">
+                <div class="input-group">
+                    <label for="primaryStr">Primary String:</label>
+                    <div class="input-with-arrows">
+                        <button class="arrow-btn" data-target="primaryStr" data-type="binary" data-direction="-1">◀</button>
+                        <input type="text" id="primaryStr" value="101101" placeholder="e.g., 101101">
+                        <button class="arrow-btn" data-target="primaryStr" data-type="binary" data-direction="1">▶</button>
+                    </div>
+                    <div class="decimal-display" id="primaryStrDecimal">Dec: 0</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="primaryOrder">Primary Order:</label>
+                    <div class="input-with-arrows">
+                        <button class="arrow-btn" data-target="primaryOrder" data-type="numeric" data-step="1" data-direction="-1">◀</button>
+                        <input type="number" id="primaryOrder" value="4" min="1" step="1">
+                        <button class="arrow-btn" data-target="primaryOrder" data-type="numeric" data-step="1" data-direction="1">▶</button>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="secondaryStr">Secondary String:</label>
+                    <div class="input-with-arrows">
+                        <button class="arrow-btn" data-target="secondaryStr" data-type="binary" data-direction="-1">◀</button>
+                        <input type="text" id="secondaryStr" value="110" placeholder="e.g., 110">
+                        <button class="arrow-btn" data-target="secondaryStr" data-type="binary" data-direction="1">▶</button>
+                    </div>
+                    <div class="decimal-display" id="secondaryStrDecimal">Dec: 0</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="cellSize">Cell Size (px):</label>
+                    <div class="input-with-arrows">
+                        <button class="arrow-btn" data-target="cellSize" data-type="float" data-step="0.1" data-direction="-1">◀</button>
+                        <input type="number" id="cellSize" value="2.0" step="0.0001">
+                        <button class="arrow-btn" data-target="cellSize" data-type="float" data-step="0.1" data-direction="1">▶</button>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="rotationDeg">Rotation (deg):</label>
+                    <div class="input-with-arrows">
+                        <button class="arrow-btn" data-target="rotationDeg" data-type="float" data-step="0.025" data-direction="-1">◀</button>
+                        <input type="number" id="rotationDeg" value="" placeholder="Calculated" step="0.0001">
+                        <button class="arrow-btn" data-target="rotationDeg" data-type="float" data-step="0.025" data-direction="1">▶</button>
+                    </div>
+                    <input type="range" id="rotationSlider" min="0" max="360" step="0.1" value="0">
+                </div>
+
+                <div class="control-section">
+                    <h3>Rotation Quality:</h3>
+                    <div class="segmented-buttons" id="interpolationToggle">
+                        <button class="segmented-btn active" data-value="Bilinear">Bilinear</button>
+                        <button class="segmented-btn" data-value="Nearest">Nearest</button>
+                        <button class="segmented-btn" data-value="Cubic">Cubic</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h3>Display Map:</h3>
+                    <div class="segmented-buttons" id="displayModeToggle">
+                        <button class="segmented-btn" data-value="Primary">Primary</button>
+                        <button class="segmented-btn" data-value="AND">AND</button>
+                        <button class="segmented-btn" data-value="OR">OR</button>
+                        <button class="segmented-btn active" data-value="XOR">XOR</button>
+                        <button class="segmented-btn" data-value="Consistency">Consistency</button>
+                    </div>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="invertOutput">
+                        <span class="checkmark"></span> NOT (Invert Output)
+                    </label>
+                </div>
+
+                 <div class="info-section">
+                    <p id="targetSizeLabel">Target Size: N/A</p>
+                    <p id="secOrderLabel">Secondary Order (calc): N/A</p>
+                </div>
+
+                <div class="status-section">
+                    <p id="statusLabel">Status: Initializing...</p>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="display">
+             <div class="display-header">
+                <h2 id="imageTitleLabel">XOR Pattern</h2>
+                <div class="zoom-controls">
+                    <span id="zoomLabel">Zoom: 100.0%</span>
+                    <button id="zoomOutBtn" class="zoom-btn">Zoom Out</button>
+                    <button id="zoomInBtn" class="zoom-btn">Zoom In</button>
+                    <div class="zoom-presets">
+                        <button id="zoom100Btn">100%</button>
+                        <button id="zoom200Btn">200%</button>
+                        <button id="zoomFitBtn">Fit</button>
+                    </div>
+                </div>
+                <div class="controls-footer">
+                    <button id="updateButton" class="action-btn primary">Update Fractals</button>
+                    <button id="exportImageButton" class="action-btn">Export Current Image...</button>
+                </div>
+            </div>
+            <div class="canvas-container">
+                <canvas id="fractalCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const FractalApp = {
+            // ========================
+            // DOM Element References
+            // ========================
+            primaryStrInput: null,
+            primaryStrDecimalLabel: null,
+            primaryOrderInput: null,
+            secondaryStrInput: null,
+            secondaryStrDecimalLabel: null,
+            cellSizeInput: null,
+            rotationDegInput: null,
+            rotationSlider: null,
+
+            interpolationToggle: null,
+            displayModeToggle: null,
+            invertOutputCheckbox: null,
+
+            targetSizeLabel: null,
+            secOrderLabel: null,
+            statusLabel: null,
+
+            updateButton: null,
+            exportImageButton: null,
+
+            zoomLabel: null,
+            zoomInBtn: null,
+            zoomOutBtn: null,
+            zoom100Btn: null,
+            zoom200Btn: null,
+            zoomFitBtn: null,
+            imageTitleLabel: null,
+            fractalCanvas: null,
+            ctx: null,
+
+            // ========================
+            // Constants & Global State
+            // ========================
+            AUTO_CONSISTENCY_THRESHOLD: 512, // MODIFIED: New threshold for auto-consistency
+            REALTIME_UPDATE_THRESHOLD: 8192,
+            MAX_ZOOM: 32.0, // Increased max zoom
+            MIN_ZOOM: 0.05,
+            FLOAT_EPSILON: 1e-9,
+            MIN_ROTATION_DEG: 0.0,
+            MAX_ROTATION_DEG: 360.0,
+            ROTATION_STEP: 0.025,
+
+            repeaterAfterId: null,
+            repeatActionParams: {},
+            ARROW_REPEAT_INITIAL_DELAY: 400,
+            ARROW_REPEAT_INTERVAL: 16,
+
+            zoomScale: 1.0,
+            panOffsetX: 0.0,
+            panOffsetY: 0.0,
+            panStartX: 0,
+            panStartY: 0,
+            panStartOffsetX: 0.0,
+            panStartOffsetY: 0.0,
+            isPanning: false,
+
+            fullResPrimaryData: null,
+            fullResSecondaryData: null,
+            fullResANDData: null,
+            fullResORData: null,
+            fullResXORData: null,
+            fullResConsistencyData: null,
+            currentFullResData: null,
+
+            currentDataWidth: 0,
+            currentDataHeight: 0,
+            lastValidPrimaryOrder: 1,
+            lastCalculatedTargetSize: 0,
+
+            displayMode: "XOR",
+            interpolationOrder: 1,
+            isSyncingRotation: false,
+
+            // ========================
+            // Initialization
+            // ========================
+            init() {
+                this.cacheDOMElements();
+                this.bindEventListeners();
+                this.initialSetup();
+            },
+
+            cacheDOMElements() {
+                this.primaryStrInput = document.getElementById('primaryStr');
+                this.primaryStrDecimalLabel = document.getElementById('primaryStrDecimal');
+                this.primaryOrderInput = document.getElementById('primaryOrder');
+                this.secondaryStrInput = document.getElementById('secondaryStr');
+                this.secondaryStrDecimalLabel = document.getElementById('secondaryStrDecimal');
+                this.cellSizeInput = document.getElementById('cellSize');
+                this.rotationDegInput = document.getElementById('rotationDeg');
+                this.rotationSlider = document.getElementById('rotationSlider');
+
+                this.interpolationToggle = document.getElementById('interpolationToggle');
+                this.displayModeToggle = document.getElementById('displayModeToggle');
+                this.invertOutputCheckbox = document.getElementById('invertOutput');
+
+                this.targetSizeLabel = document.getElementById('targetSizeLabel');
+                this.secOrderLabel = document.getElementById('secOrderLabel');
+                this.statusLabel = document.getElementById('statusLabel');
+
+                this.updateButton = document.getElementById('updateButton');
+                this.exportImageButton = document.getElementById('exportImageButton');
+
+                this.zoomLabel = document.getElementById('zoomLabel');
+                this.zoomInBtn = document.getElementById('zoomInBtn');
+                this.zoomOutBtn = document.getElementById('zoomOutBtn');
+                this.zoom100Btn = document.getElementById('zoom100Btn');
+                this.zoom200Btn = document.getElementById('zoom200Btn');
+                this.zoomFitBtn = document.getElementById('zoomFitBtn');
+                this.imageTitleLabel = document.getElementById('imageTitleLabel');
+                this.fractalCanvas = document.getElementById('fractalCanvas');
+                this.ctx = this.fractalCanvas.getContext('2d');
+            },
+
+            bindEventListeners() {
+                // Input listeners
+                this.primaryStrInput.addEventListener('input', () => { this._updateDecimalDisplay(this.primaryStrInput, this.primaryStrDecimalLabel); this.checkSizeAndMaybeUpdate(); });
+                this.primaryOrderInput.addEventListener('input', () => this.checkSizeAndMaybeUpdate());
+                this.secondaryStrInput.addEventListener('input', () => { this._updateDecimalDisplay(this.secondaryStrInput, this.secondaryStrDecimalLabel); this.checkSizeAndMaybeUpdate(); });
+                this.cellSizeInput.addEventListener('input', () => this._syncRotationFromCellSize(true));
+                this.rotationDegInput.addEventListener('input', () => this._syncCellSizeFromRotation(true));
+                this.rotationSlider.addEventListener('input', (e) => this._sliderUpdateRotation(parseFloat(e.target.value)));
+
+                // Arrow button listeners
+                document.querySelectorAll('.arrow-btn').forEach(button => {
+                    const startAction = (e) => {
+                        // Prevent the browser from also firing a mouse event
+                        e.preventDefault(); 
+                        const targetId = e.target.dataset.target;
+                        const type = e.target.dataset.type;
+                        const step = e.target.dataset.step || '1';
+                        const direction = e.target.dataset.direction;
+                        const isRotation = (targetId === "rotationDeg");
+                        this._onArrowButtonPress(targetId, type, step, direction, isRotation);
+                    };
+
+                    const endAction = (e) => {
+                        e.preventDefault();
+                        this._onArrowButtonRelease();
+                    };
+
+                    // Listen for mouse clicks
+                    button.addEventListener('mousedown', startAction);
+                    button.addEventListener('mouseup', endAction);
+                    button.addEventListener('mouseleave', endAction);
+
+                    // Listen for touch events on mobile
+                    button.addEventListener('touchstart', startAction);
+                    button.addEventListener('touchend', endAction);
+                    button.addEventListener('touchcancel', endAction);
+                });
+
+                // Toggle button listeners
+                this.interpolationToggle.addEventListener('click', (e) => this._handleSegmentedButtonClick(e, this.interpolationToggle, this.interpolationChanged.bind(this)));
+                this.displayModeToggle.addEventListener('click', (e) => this._handleSegmentedButtonClick(e, this.displayModeToggle, this.displayModeChanged.bind(this)));
+                this.invertOutputCheckbox.addEventListener('change', () => this.invertToggleChanged());
+
+                // Action button listeners
+                this.updateButton.addEventListener('click', () => this.runFullUpdate());
+                this.exportImageButton.addEventListener('click', () => this.exportCurrentImage());
+
+                // Canvas interaction listeners
+                this.fractalCanvas.addEventListener('wheel', (e) => this.onMouseWheel(e));
+                this.fractalCanvas.addEventListener('mousedown', (e) => this.onPanStart(e));
+                this.fractalCanvas.addEventListener('mousemove', (e) => this.onPanMove(e));
+                this.fractalCanvas.addEventListener('mouseup', () => this.onPanEnd());
+                this.fractalCanvas.addEventListener('mouseleave', () => this.onPanEnd());
+
+                // Canvas resize observer
+                const resizeObserver = new ResizeObserver(entries => {
+                    for (let entry of entries) {
+                        if (entry.target === this.fractalCanvas.parentElement) { // Observe the container
+                            this.onCanvasConfigure();
+                        }
+                    }
+                });
+                resizeObserver.observe(this.fractalCanvas.parentElement);
+
+                // Zoom button listeners (UPDATED LOGIC)
+                this.zoomInBtn.addEventListener('click', () => this._zoomToIntegerStep(1));
+                this.zoomOutBtn.addEventListener('click', () => this._zoomToIntegerStep(-1));
+                this.zoom100Btn.addEventListener('click', () => this._setZoom(1.0));
+                this.zoom200Btn.addEventListener('click', () => this._setZoom(2.0));
+                this.zoomFitBtn.addEventListener('click', () => this._zoomFitToScreen());
+            },
+
+            initialSetup() {
+                this.interpolationToggle.querySelector(`[data-value="Bilinear"]`).classList.add('active');
+                this.displayModeToggle.querySelector(`[data-value="XOR"]`).classList.add('active');
+                this._updateDecimalDisplay(this.primaryStrInput, this.primaryStrDecimalLabel);
+                this._updateDecimalDisplay(this.secondaryStrInput, this.secondaryStrDecimalLabel);
+                this._updateZoomLabel();
+                this._syncRotationFromCellSize(true);
+                this.checkSizeAndMaybeUpdate();
+                this._updateUIForDisplayMode(this.displayMode);
+                this.onCanvasConfigure(); // Initial canvas setup
+            },
+
+            // ========================
+            // Core Fractal Functions
+            // ========================
+            create_first_order(binaryStr) {
+                if (!binaryStr) return [[0]];
+                const arr = binaryStr.split('').map(Number);
+                if (arr.some(isNaN) || arr.length === 0) return [[0]];
+                
+                const rows = arr.length;
+                const cols = arr.length;
+                const result = Array(rows).fill(0).map(() => Array(cols).fill(0));
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        if (r === 0) {
+                            // First row is a copy of the string
+                            result[r][c] = arr[c];
+                        } else if (c === 0) {
+                            // First col is a copy of the string
+                            result[r][c] = arr[r];
+                        } else {
+                            // Inner block is XNOR of the corresponding string elements
+                            result[r][c] = 1 - (arr[r] ^ arr[c]);
+                        }
+                    }
+                }
+                return result;
+            },
+            generate_next_order(arr) {
+                if (!arr || arr.length === 0 || !Array.isArray(arr[0]) || arr.length !== arr[0].length) return [[0]];
+                const size = arr.length, newSize = size * 2;
+                const result = Array(newSize).fill(0).map(() => Array(newSize).fill(0));
+                const inv = arr.map(row => row.map(val => 1 - val));
+                for (let r = 0; r < size; r++) {
+                    for (let c = 0; c < size; c++) {
+                        result[r][c] = inv[r][c];
+                        result[r][c + size] = arr[r][c];
+                        result[r + size][c] = arr[r][c];
+                        result[r + size][c + size] = inv[r][c];
+                    }
+                }
+                return result;
+            },
+            calculate_final_size(primaryStr, primaryOrder) {
+                if (!primaryStr || !/^[01]+$/.test(primaryStr) || typeof primaryOrder !== 'number' || primaryOrder < 1) return 0;
+                const baseLen = this.create_first_order(primaryStr).length;
+                if (baseLen === 0) return 0;
+                return Math.max(1, Math.min(baseLen * (2 ** (primaryOrder - 1)), 2 ** 12));
+            },
+            calculate_required_order(baseLen, targetSize) {
+                if (baseLen <= 0) return 1;
+                targetSize = Math.max(1, targetSize);
+                if (baseLen >= targetSize) return 1;
+                return 1 + Math.floor(Math.ceil(Math.log2(targetSize / baseLen + this.FLOAT_EPSILON)));
+            },
+            generate_scaled_fractal(binaryStr, targetSize) {
+                targetSize = Math.max(1, Math.round(targetSize));
+                if (!binaryStr || !/^[01]+$/.test(binaryStr)) return Array(targetSize).fill(0).map(() => Array(targetSize).fill(0));
+                let patternToScale = this.create_first_order(binaryStr);
+                if (patternToScale.length === 0 || patternToScale[0].length === 0) return Array(targetSize).fill(0).map(() => Array(targetSize).fill(0));
+                let currentOrder = 1;
+                while (patternToScale.length < targetSize && currentOrder < 12) {
+                    patternToScale = this.generate_next_order(patternToScale);
+                    currentOrder++;
+                }
+                const srcSize = patternToScale.length;
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = srcSize; tempCanvas.height = srcSize;
+                const tempCtx = tempCanvas.getContext('2d');
+                const imageData = tempCtx.createImageData(srcSize, srcSize);
+                let k = 0;
+                for (let r = 0; r < srcSize; r++) for (let c = 0; c < srcSize; c++) {
+                    const val = patternToScale[r][c] * 255;
+                    imageData.data[k++] = val; imageData.data[k++] = val; imageData.data[k++] = val; imageData.data[k++] = 255;
+                }
+                tempCtx.putImageData(imageData, 0, 0);
+                const resizedCanvas = document.createElement('canvas');
+                resizedCanvas.width = targetSize; resizedCanvas.height = targetSize;
+                const resizedCtx = resizedCanvas.getContext('2d');
+                resizedCtx.imageSmoothingEnabled = false;
+                resizedCtx.drawImage(tempCanvas, 0, 0, targetSize, targetSize);
+                const finalImageData = resizedCtx.getImageData(0, 0, targetSize, targetSize);
+                const finalPattern = Array(targetSize).fill(0).map(() => Array(targetSize).fill(0));
+                k = 0;
+                for (let r = 0; r < targetSize; r++) for (let c = 0; c < targetSize; c++) {
+                    finalPattern[r][c] = (finalImageData.data[k] > 128) ? 1 : 0;
+                    k += 4;
+                }
+                return finalPattern;
+            },
+            process_dual_fractals(primaryStr, primaryOrder, secondaryStr) {
+                primaryOrder = Math.max(1, primaryOrder);
+                const potentialPrimarySize = this.calculate_final_size(primaryStr, primaryOrder);
+                let primary = (potentialPrimarySize <= 0) ? [[0]] : this.generate_scaled_fractal(primaryStr, potentialPrimarySize);
+                const targetSize = primary.length;
+                if (targetSize === 0 || primary[0].length !== targetSize) primary = Array(targetSize).fill(0).map(() => Array(targetSize).fill(0));
+                const secondary = this.generate_scaled_fractal(secondaryStr, targetSize);
+                if (secondary.length !== targetSize || secondary[0].length !== targetSize) secondary = Array(targetSize).fill(0).map(() => Array(targetSize).fill(0));
+                const secondaryBaseLen = (secondaryStr) ? this.create_first_order(secondaryStr).length : 0;
+                const calculatedSecondaryOrder = (secondaryBaseLen > 0) ? this.calculate_required_order(secondaryBaseLen, targetSize) : 1;
+                return { primary, secondary, calculatedSecondaryOrder, targetSize };
+            },
+
+            // ========================
+            // Interference and Drawing
+            // ========================
+            arrayToImageData(array) {
+                if (!array || array.length === 0 || !Array.isArray(array[0])) return new ImageData(1, 1);
+                const height = array.length, width = array[0].length;
+                const imageData = new ImageData(width, height);
+                let k = 0;
+                for (let r = 0; r < height; r++) for (let c = 0; c < width; c++) {
+                    const val = Math.round(Math.max(0, Math.min(255, array[r][c] * 255)));
+                    imageData.data[k++] = val; imageData.data[k++] = val; imageData.data[k++] = val; imageData.data[k++] = 255;
+                }
+                return imageData;
+            },
+            imageDataToArray(imageData) {
+                const width = imageData.width, height = imageData.height;
+                const array = Array(height).fill(0).map(() => Array(width).fill(0.0));
+                let k = 0;
+                for (let r = 0; r < height; r++) for (let c = 0; c < width; c++) {
+                    array[r][c] = (imageData.data[k] / 255.0);
+                    k += 4;
+                }
+                return array;
+            },
+            rotatePatternWithCanvas(pattern, angleDegrees, interpolationOrder) {
+                if (!pattern || pattern.length === 0 || !Array.isArray(pattern[0])) return [[0]];
+                const size = pattern.length;
+                if (size === 0) return [[0]];
+                const srcImageData = this.arrayToImageData(pattern);
+                const sourceRenderCanvas = document.createElement('canvas');
+                sourceRenderCanvas.width = size; sourceRenderCanvas.height = size;
+                sourceRenderCanvas.getContext('2d').putImageData(srcImageData, 0, 0);
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = size; tempCanvas.height = size;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.imageSmoothingEnabled = (interpolationOrder !== 0);
+                tempCtx.translate(size / 2, size / 2);
+                tempCtx.rotate(angleDegrees * Math.PI / 180);
+                tempCtx.drawImage(sourceRenderCanvas, -size / 2, -size / 2);
+                tempCtx.setTransform(1, 0, 0, 1, 0, 0);
+                return this.imageDataToArray(tempCtx.getImageData(0, 0, size, size));
+            },
+            // --- MODIFIED FUNCTION ---
+            compute_interference_core(pattern1, pattern2, angleDegrees, interpolationOrder) {
+                if (!pattern1 || !pattern2 || pattern1.length !== pattern2.length || pattern1[0].length !== pattern2[0].length) {
+                    const size = pattern1 ? pattern1.length : 1;
+                    const empty = Array(size).fill(0).map(() => Array(size).fill(0));
+                    return { op_and: empty, op_or: empty, op_xor: empty };
+                }
+                const size = pattern1.length;
+                // REMOVED: Angle calculation from cellSize.
+                // The correct angle is now passed directly as 'angleDegrees'.
+                const rotatedPattern2 = this.rotatePatternWithCanvas(pattern2, angleDegrees, interpolationOrder);
+                const op_and = Array(size).fill(0).map(() => Array(size).fill(0));
+                const op_or = Array(size).fill(0).map(() => Array(size).fill(0));
+                const op_xor = Array(size).fill(0).map(() => Array(size).fill(0));
+                for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+                    const p1 = pattern1[r][c], p2 = rotatedPattern2[r][c];
+                    op_and[r][c] = p1 * p2;
+                    op_or[r][c] = Math.max(p1, p2);
+                    op_xor[r][c] = 1 - Math.abs(p1 - p2);
+                }
+                return { op_and, op_or, op_xor };
+            },
+            // --- MODIFIED FUNCTION ---
+            calculate_interference_consistency(primaryStr, primaryOrder, secondaryStr, rotationDegrees, interpolationOrder, finalSize, statusCallback) {
+                if (finalSize <= 0 || primaryOrder < 1 || !primaryStr) return null;
+                finalSize = Math.max(1, Math.round(finalSize));
+                let consistencyMap = Array(finalSize).fill(0).map(() => Array(finalSize).fill(0.0));
+                if (this.create_first_order(primaryStr).length === 0) return null;
+                statusCallback("Initializing consistency calculation...", false, false);
+                const ordersToProcess = Array.from({ length: primaryOrder }, (_, i) => i + 1);
+                let processedOrdersCount = 0;
+                for (const k of ordersToProcess) {
+                    statusCallback(`Consistency: Order ${k}/${primaryOrder}...`, false, false);
+                    const currentSizeK = this.calculate_final_size(primaryStr, k);
+                    if (currentSizeK <= 0) continue;
+                    const primaryK = this.generate_scaled_fractal(primaryStr, currentSizeK);
+                    const secondaryK = this.generate_scaled_fractal(secondaryStr, currentSizeK);
+                    if (primaryK.length !== currentSizeK || secondaryK.length !== currentSizeK) continue;
+                    
+                    // MODIFIED: Pass rotationDegrees directly
+                    const { op_xor: xorK } = this.compute_interference_core(primaryK, secondaryK, rotationDegrees, interpolationOrder);
+
+                    if (xorK.length !== currentSizeK) continue;
+                    const signedInterferenceK = xorK.map(row => row.map(val => (2.0 * val) - 1.0));
+                    let signedKScaled;
+                    if (currentSizeK === finalSize) {
+                        signedKScaled = signedInterferenceK;
+                    } else {
+                        const tempCanvas = document.createElement('canvas'); tempCanvas.width = currentSizeK; tempCanvas.height = currentSizeK;
+                        const tempCtx = tempCanvas.getContext('2d');
+                        const imageData = tempCtx.createImageData(currentSizeK, currentSizeK);
+                        let pixIdx = 0;
+                        for (let r = 0; r < currentSizeK; r++) for (let c = 0; c < currentSizeK; c++) {
+                            const val = ((signedInterferenceK[r][c] + 1.0) / 2.0) * 255.0;
+                            imageData.data[pixIdx++] = val; imageData.data[pixIdx++] = val; imageData.data[pixIdx++] = val; imageData.data[pixIdx++] = 255;
+                        }
+                        tempCtx.putImageData(imageData, 0, 0);
+                        const resizedCanvas = document.createElement('canvas'); resizedCanvas.width = finalSize; resizedCanvas.height = finalSize;
+                        const resizedCtx = resizedCanvas.getContext('2d');
+                        resizedCtx.imageSmoothingEnabled = false;
+                        resizedCtx.drawImage(tempCanvas, 0, 0, finalSize, finalSize);
+                        const finalImageData = resizedCtx.getImageData(0, 0, finalSize, finalSize);
+                        signedKScaled = Array(finalSize).fill(0).map(() => Array(finalSize).fill(0.0));
+                        pixIdx = 0;
+                        for (let r = 0; r < finalSize; r++) for (let c = 0; c < finalSize; c++) {
+                            signedKScaled[r][c] = ((finalImageData.data[pixIdx] / 255.0) * 2.0) - 1.0;
+                            pixIdx += 4;
+                        }
+                    }
+                    for (let r = 0; r < finalSize; r++) for (let c = 0; c < finalSize; c++) consistencyMap[r][c] += signedKScaled[r][c];
+                    processedOrdersCount++;
+                }
+                if (processedOrdersCount === 0) return Array(finalSize).fill(0).map(() => Array(finalSize).fill(0.5));
+                const averagedMap = consistencyMap.map(row => row.map(val => val / processedOrdersCount));
+                return averagedMap.map(row => row.map(val => Math.max(0.0, Math.min(1.0, (val + 1.0) / 2.0))));
+            },
+
+            // ========================
+            // GUI Helper Functions
+            // ========================
+            binaryToDecimal(binaryStr) {
+                return (!binaryStr) ? 0 : parseInt(binaryStr, 2);
+            },
+            decimalToBinary(decimalVal) {
+                return (typeof decimalVal !== 'number' || decimalVal < 0 || isNaN(decimalVal)) ? "0" : decimalVal.toString(2);
+            },
+            setStatus(message, isError = false, isWarning = false) {
+                this.statusLabel.textContent = `Status: ${message}`;
+                this.statusLabel.className = '';
+                if (isError) this.statusLabel.classList.add('error');
+                else if (isWarning) this.statusLabel.classList.add('warning');
+            },
+            _updateDecimalDisplay(input, label) {
+                const binStr = input.value.trim().replace(/[^01]/g, '');
+                label.textContent = `Dec: ${this.binaryToDecimal(binStr) || 0}`;
+            },
+            _incrementDecrementField(entryElement, labelElement, isBinary, isNumeric, stepVal, directionVal, isRotationField = false) {
+                let currentValStr = entryElement.value.trim();
+                if (isBinary) {
+                    const filteredBinaryStr = currentValStr.replace(/[^01]/g, '');
+                    let currentDec = this.binaryToDecimal(filteredBinaryStr) || 0;
+                    const newDec = Math.max(0, currentDec + directionVal);
+                    entryElement.value = this.decimalToBinary(newDec);
+                    if (labelElement) this._updateDecimalDisplay(entryElement, labelElement);
+                } else if (isNumeric) {
+                    let currentNum = parseFloat(currentValStr) || 0;
+                    let newNum = currentNum + (stepVal * directionVal);
+                    if (entryElement.id === "primaryOrder") {
+                        newNum = Math.max(1, Math.round(newNum));
+                        entryElement.value = String(newNum);
+                    } else if (isRotationField) {
+                        newNum = Math.round(newNum / this.ROTATION_STEP) * this.ROTATION_STEP;
+                        newNum = Math.max(this.MIN_ROTATION_DEG, Math.min(this.MAX_ROTATION_DEG, newNum));
+                        entryElement.value = newNum.toFixed(4);
+                    } else {
+                        if (Math.abs(newNum) < this.FLOAT_EPSILON / 2 && newNum !== 0) newNum = this.FLOAT_EPSILON * directionVal;
+                        entryElement.value = newNum.toFixed(4);
+                    }
+                }
+
+                if (isRotationField) {
+                    this._syncCellSizeFromRotation(true);
+                } else if (entryElement.id === "cellSize") {
+                    this._syncRotationFromCellSize(true);
+                } else {
+                    this.checkSizeAndMaybeUpdate();
+                }
+            },
+            _onArrowButtonPress(entryTargetId, type, step, direction, isRotation) {
+                if (this.repeaterAfterId) clearTimeout(this.repeaterAfterId);
+                this.repeatActionParams = { entryElement: document.getElementById(entryTargetId), labelElement: document.getElementById(entryTargetId + 'Decimal'), isBinary: (type === 'binary'), isNumeric: (type === 'numeric' || type === 'float'), stepVal: parseFloat(step), directionVal: parseInt(direction), isRotationField: isRotation };
+                this._incrementDecrementField(...Object.values(this.repeatActionParams));
+                this.repeaterAfterId = setTimeout(() => this._doRepeatAction(), this.ARROW_REPEAT_INITIAL_DELAY);
+            },
+            _doRepeatAction() {
+                if (!this.repeatActionParams.entryElement || this.repeaterAfterId === null) {
+                    if (this.repeaterAfterId) clearTimeout(this.repeaterAfterId);
+                    this.repeaterAfterId = null;
+                    return;
+                }
+                this._incrementDecrementField(...Object.values(this.repeatActionParams));
+                if (this.repeaterAfterId !== null) this.repeaterAfterId = setTimeout(() => this._doRepeatAction(), this.ARROW_REPEAT_INTERVAL);
+            },
+            _onArrowButtonRelease() {
+                if (this.repeaterAfterId) clearTimeout(this.repeaterAfterId);
+                this.repeaterAfterId = null;
+                this.repeatActionParams = {};
+            },
+            _sliderUpdateRotation(value) {
+                if (this.isSyncingRotation) return;
+                this.isSyncingRotation = true;
+                this.rotationDegInput.value = parseFloat(value).toFixed(4);
+                this.isSyncingRotation = false;
+                this._syncCellSizeFromRotation(true); 
+            },
+            _handleSegmentedButtonClick(event, container, callback) {
+                const button = event.target.closest('.segmented-btn');
+                if (button) {
+                    container.querySelectorAll('.segmented-btn').forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    callback(button.dataset.value);
+                }
+            },
+
+            // ========================
+            // Zoom & Pan Functions
+            // ========================
+            _updateZoomLabel() {
+                this.zoomLabel.textContent = `Zoom: ${(this.zoomScale * 100).toFixed(1)}%`;
+            },
+            _applyZoom(zoomFactor, canvasX, canvasY) {
+                if (this.currentFullResData === null) return;
+                const newScale = Math.max(this.MIN_ZOOM, Math.min(this.zoomScale * zoomFactor, this.MAX_ZOOM));
+                this._setZoom(newScale, canvasX, canvasY);
+            },
+            _setZoom(newAbsoluteScale, canvasX, canvasY) {
+                if (this.currentFullResData === null) return;
+                newAbsoluteScale = Math.max(this.MIN_ZOOM, Math.min(newAbsoluteScale, this.MAX_ZOOM));
+                if (Math.abs(newAbsoluteScale - this.zoomScale) < this.FLOAT_EPSILON) return;
+
+                const canvasWidth = this.fractalCanvas.offsetWidth;
+                const canvasHeight = this.fractalCanvas.offsetHeight;
+                const pivotX = (canvasX === undefined) ? canvasWidth / 2 : canvasX;
+                const pivotY = (canvasY === undefined) ? canvasHeight / 2 : canvasY;
+
+                const imgPivotX = this.panOffsetX + pivotX / this.zoomScale;
+                const imgPivotY = this.panOffsetY + pivotY / this.zoomScale;
+
+                this.zoomScale = newAbsoluteScale;
+                this._updateZoomLabel();
+
+                this.panOffsetX = imgPivotX - pivotX / this.zoomScale;
+                this.panOffsetY = imgPivotY - pivotY / this.zoomScale;
+
+                this.clampPanOffset();
+                this.updateCanvasImage();
+            },
+            _zoomToIntegerStep(direction) {
+                if (this.currentFullResData === null) return;
+                const currentScale = this.zoomScale;
+                let newScale;
+                if (direction > 0) { // Zoom In
+                    newScale = Math.floor(currentScale + this.FLOAT_EPSILON) + 1;
+                } else { // Zoom Out
+                    newScale = Math.ceil(currentScale - this.FLOAT_EPSILON) - 1;
+                }
+                newScale = Math.max(1, newScale); // Minimum zoom is 1x for integer steps
+                this._setZoom(newScale);
+            },
+            _zoomFitToScreen() {
+                if (!this.currentFullResData || this.currentDataWidth === 0) {
+                    this._setZoom(1.0);
+                    return;
+                }
+                const canvasWidth = this.fractalCanvas.offsetWidth;
+                const canvasHeight = this.fractalCanvas.offsetHeight;
+                if (canvasWidth <= 1 || canvasHeight <= 1) return;
+                const scale = Math.min(canvasWidth / this.currentDataWidth, canvasHeight / this.currentDataHeight);
+                this._setZoom(scale * 0.98); // Add a small margin
+                this.panOffsetX = (this.currentDataWidth - canvasWidth / this.zoomScale) / 2.0;
+                this.panOffsetY = (this.currentDataHeight - canvasHeight / this.zoomScale) / 2.0;
+                this.clampPanOffset();
+                this.updateCanvasImage();
+            },
+            onMouseWheel(event) {
+                event.preventDefault();
+                const zoomFactor = (event.deltaY < 0) ? 1.1 : 1 / 1.1;
+                this._applyZoom(zoomFactor, event.offsetX, event.offsetY);
+            },
+            onPanStart(event) {
+                if (event.buttons !== 1) return;
+                this.isPanning = true;
+                this.panStartX = event.clientX;
+                this.panStartY = event.clientY;
+                this.panStartOffsetX = this.panOffsetX;
+                this.panStartOffsetY = this.panOffsetY;
+                this.fractalCanvas.style.cursor = 'grabbing';
+            },
+            onPanMove(event) {
+                if (!this.isPanning) return;
+                const dx = event.clientX - this.panStartX;
+                const dy = event.clientY - this.panStartY;
+                this.panOffsetX = this.panStartOffsetX - (dx / this.zoomScale);
+                this.panOffsetY = this.panStartOffsetY - (dy / this.zoomScale);
+                this.clampPanOffset();
+                this.updateCanvasImage();
+            },
+            onPanEnd() {
+                this.isPanning = false;
+                this.fractalCanvas.style.cursor = 'crosshair';
+            },
+            clampPanOffset() {
+                if (!this.currentFullResData || this.fractalCanvas.width <= 1) {
+                    this.panOffsetX = 0.0; this.panOffsetY = 0.0;
+                    return;
+                }
+                const viewWidthImg = this.fractalCanvas.width / this.zoomScale;
+                const viewHeightImg = this.fractalCanvas.height / this.zoomScale;
+                const maxOffsetX = Math.max(0, this.currentDataWidth - viewWidthImg);
+                const maxOffsetY = Math.max(0, this.currentDataHeight - viewHeightImg);
+                const minOffsetX = (this.currentDataWidth <= viewWidthImg) ? (this.currentDataWidth - viewWidthImg) / 2.0 : 0;
+                const minOffsetY = (this.currentDataHeight <= viewHeightImg) ? (this.currentDataHeight - viewHeightImg) / 2.0 : 0;
+                this.panOffsetX = Math.max(minOffsetX, Math.min(this.panOffsetX, maxOffsetX));
+                this.panOffsetY = Math.max(minOffsetY, Math.min(this.panOffsetY, maxOffsetY));
+            },
+
+            // ========================
+            // Main App Logic & Drawing
+            // ========================
+            _syncRotationFromCellSize(updateLinkedUI = true) {
+                if (this.isSyncingRotation) return;
+                this.isSyncingRotation = true;
+                try {
+                    const cellSize = parseFloat(this.cellSizeInput.value);
+                    const rotationDegVal = (Math.abs(cellSize) > this.FLOAT_EPSILON) ? (180.0 / Math.PI) / cellSize : 0.0;
+                    if (updateLinkedUI) {
+                        this.rotationDegInput.value = isNaN(rotationDegVal) ? "" : rotationDegVal.toFixed(4);
+                        this.rotationSlider.value = isNaN(rotationDegVal) ? 0 : Math.max(this.MIN_ROTATION_DEG, Math.min(this.MAX_ROTATION_DEG, rotationDegVal));
+                    }
+                } finally {
+                    this.isSyncingRotation = false;
+                    if (this.fullResPrimaryData) {
+                        this.recomputeInterferenceAndDisplay();
+                    } else {
+                        this.checkSizeAndMaybeUpdate();
+                    }
+                }
+            },
+            _syncCellSizeFromRotation(updateLinkedUI = true) {
+                if (this.isSyncingRotation) return;
+                this.isSyncingRotation = true;
+                try {
+                    const rotationDeg = parseFloat(this.rotationDegInput.value);
+                    const theta = Math.abs(rotationDeg) % 90;
+                    const canonicalAngle = (theta > 45) ? 90 - theta : theta;
+                    const cellSizeVal = (Math.abs(canonicalAngle) > this.FLOAT_EPSILON) ? (180.0 / Math.PI) / canonicalAngle : 0.0;
+
+                    if (updateLinkedUI) {
+                        this.cellSizeInput.value = isNaN(cellSizeVal) ? "" : cellSizeVal.toFixed(4);
+                        this.rotationSlider.value = isNaN(rotationDeg) ? 0 : Math.max(this.MIN_ROTATION_DEG, Math.min(this.MAX_ROTATION_DEG, rotationDeg));
+                    }
+                } finally {
+                    this.isSyncingRotation = false;
+                    if (this.fullResPrimaryData) {
+                        this.recomputeInterferenceAndDisplay();
+                    } else {
+                        this.checkSizeAndMaybeUpdate();
+                    }
+                }
+            },
+            interpolationChanged(value) {
+                this.interpolationOrder = (value === "Nearest") ? 0 : (value === "Cubic" ? 3 : 1);
+                if (this.fullResPrimaryData) this.recomputeInterferenceAndDisplay();
+                else this.checkSizeAndMaybeUpdate();
+            },
+            _updateUIForDisplayMode(mode) {
+                const isPrimaryMode = (mode === "Primary");
+                const isConsistencyMode = (mode === "Consistency");
+                [this.secondaryStrInput, this.cellSizeInput, this.rotationDegInput, this.rotationSlider].forEach(el => el.disabled = isPrimaryMode);
+                document.querySelectorAll('[data-target="secondaryStr"], [data-target="cellSize"], [data-target="rotationDeg"]').forEach(btn => btn.disabled = isPrimaryMode);
+                this.interpolationToggle.querySelectorAll('.segmented-btn').forEach(btn => btn.disabled = isPrimaryMode);
+                this.invertOutputCheckbox.disabled = isConsistencyMode || isPrimaryMode;
+                if (isConsistencyMode) this.invertOutputCheckbox.checked = false;
+            },
+            displayModeChanged(value) {
+                this.displayMode = value;
+                this._updateUIForDisplayMode(value);
+                this.selectCurrentDataAndDisplay(false);
+            },
+            invertToggleChanged() {
+                this.selectCurrentDataAndDisplay(false);
+            },
+            runFullUpdate() {
+                this.updateFractals(true);
+            },
+            checkSizeAndMaybeUpdate() {
+                const { primaryStr, primaryOrder } = this.validateInputs(false) || {};
+                if (!primaryStr || !primaryOrder) return;
+
+                const potentialSize = this.calculate_final_size(primaryStr, primaryOrder);
+                this.targetSizeLabel.textContent = (potentialSize > 0) ? `Potential Size: ${potentialSize}x${potentialSize}` : "Target Size: Invalid";
+
+                if (potentialSize > 0 && potentialSize <= this.AUTO_CONSISTENCY_THRESHOLD) {
+                    this.updateFractals(true);
+                } 
+                else if (potentialSize > this.AUTO_CONSISTENCY_THRESHOLD && potentialSize <= this.REALTIME_UPDATE_THRESHOLD) {
+                    this.updateFractals(false);
+                } 
+                else if (potentialSize > this.REALTIME_UPDATE_THRESHOLD) {
+                    this.setStatus(`Size ${potentialSize} > ${this.REALTIME_UPDATE_THRESHOLD}. Press 'Update Fractals'.`, false, true);
+                }
+            },
+            // --- MODIFIED FUNCTION ---
+            validateInputs(showError = true) {
+                try {
+                    const primaryStr = this.primaryStrInput.value.trim().replace(/[^01]/g, '');
+                    if (!primaryStr) throw new Error("Primary string is empty or invalid.");
+                    const primaryOrder = parseInt(this.primaryOrderInput.value);
+                    if (isNaN(primaryOrder) || primaryOrder < 1) throw new Error("Primary order must be an integer >= 1.");
+                    const secondaryStr = this.secondaryStrInput.value.trim().replace(/[^01]/g, '');
+                    const cellSize = parseFloat(this.cellSizeInput.value);
+                    if (isNaN(cellSize)) throw new Error("Cell Size is invalid.");
+                    const rotationDeg = parseFloat(this.rotationDegInput.value) || 0; // Default to 0 if empty/invalid
+                    return { primaryStr, primaryOrder, secondaryStr, cellSize, rotationDeg, interpOrder: this.interpolationOrder };
+                } catch (e) {
+                    if (showError) this.setStatus(e.message, true, false);
+                    return null;
+                }
+            },
+            // --- MODIFIED FUNCTION ---
+            updateFractals(calculateConsistency = false) {
+                const validatedInputs = this.validateInputs();
+                if (!validatedInputs) return;
+                // MODIFIED: Get rotationDeg from inputs
+                const { primaryStr, primaryOrder, secondaryStr, rotationDeg, interpOrder } = validatedInputs;
+
+                this.setStatus("Generating fractals...");
+                const oldCenter = (this.currentDataWidth > 0) ? { x: this.panOffsetX + (this.fractalCanvas.width / this.zoomScale) / 2, y: this.panOffsetY + (this.fractalCanvas.height / this.zoomScale) / 2 } : null;
+                const oldSize = { w: this.currentDataWidth, h: this.currentDataHeight };
+                this.clearCalculatedData(false);
+                if (calculateConsistency) this.fullResConsistencyData = null;
+
+                setTimeout(() => { // Allow UI to update
+                    try {
+                        const { primary, secondary, calculatedSecondaryOrder, targetSize } = this.process_dual_fractals(primaryStr, primaryOrder, secondaryStr);
+                        this.fullResPrimaryData = primary; this.fullResSecondaryData = secondary;
+                        this.lastCalculatedTargetSize = targetSize;
+                        this.targetSizeLabel.textContent = `Actual Size: ${targetSize}x${targetSize}`;
+                        this.secOrderLabel.textContent = `Secondary Order (calc): ${calculatedSecondaryOrder}`;
+                        this.setStatus("Computing interference...");
+                        setTimeout(() => {
+                            // MODIFIED: Pass rotationDeg directly
+                            const { op_and, op_or, op_xor } = this.compute_interference_core(primary, secondary, rotationDeg, interpOrder);
+                            this.fullResANDData = op_and; this.fullResORData = op_or; this.fullResXORData = op_xor;
+                            if (calculateConsistency) {
+                                this.setStatus("Calculating consistency (may take time)...", false, false);
+                                setTimeout(() => {
+                                    // MODIFIED: Pass rotationDeg directly
+                                    this.fullResConsistencyData = this.calculate_interference_consistency(primaryStr, primaryOrder, secondaryStr, rotationDeg, interpOrder, targetSize, (msg, err, warn) => this.setStatus(msg, err, warn));
+                                    this.setStatus("Ready.");
+                                    this.selectCurrentDataAndDisplay(true, oldCenter ? { x: oldCenter.x / oldSize.w, y: oldCenter.y / oldSize.h } : undefined);
+                                }, 10);
+                            } else {
+                                this.setStatus("Ready.");
+                                this.selectCurrentDataAndDisplay(true, oldCenter ? { x: oldCenter.x / oldSize.w, y: oldCenter.y / oldSize.h } : undefined);
+                            }
+                        }, 10);
+                    } catch (e) {
+                        this.setStatus(`Error: ${e.message}`, true, false);
+                        this.clearCalculatedData(true);
+                    }
+                }, 10);
+            },
+            // --- MODIFIED FUNCTION ---
+            recomputeInterferenceAndDisplay() {
+                if (!this.fullResPrimaryData) return;
+                const validatedInputs = this.validateInputs();
+                if (!validatedInputs) return;
+
+                // MODIFIED: Get rotationDeg from inputs
+                const { primaryStr, primaryOrder, secondaryStr, rotationDeg, interpOrder } = validatedInputs;
+
+                const finalSize = this.fullResPrimaryData.length;
+                const shouldCalculateConsistency = finalSize > 0 && finalSize <= this.AUTO_CONSISTENCY_THRESHOLD;
+                if (shouldCalculateConsistency) {
+                    this.fullResConsistencyData = null;
+                }
+
+                this.setStatus("Recomputing interference...");
+                setTimeout(() => {
+                    // MODIFIED: Pass rotationDeg directly
+                    const { op_and, op_or, op_xor } = this.compute_interference_core(this.fullResPrimaryData, this.fullResSecondaryData, rotationDeg, interpOrder);
+                    this.fullResANDData = op_and;
+                    this.fullResORData = op_or;
+                    this.fullResXORData = op_xor;
+
+                    if (shouldCalculateConsistency) {
+                        this.setStatus("Calculating consistency...", false, false);
+                        setTimeout(() => {
+                            // MODIFIED: Pass rotationDeg directly
+                            this.fullResConsistencyData = this.calculate_interference_consistency(
+                                primaryStr, primaryOrder, secondaryStr, rotationDeg, interpOrder, finalSize,
+                                (msg, err, warn) => this.setStatus(msg, err, warn)
+                            );
+                            this.setStatus("Ready.");
+                            this.selectCurrentDataAndDisplay(false);
+                        }, 10);
+                    } else {
+                        this.setStatus("Ready.");
+                        this.selectCurrentDataAndDisplay(false);
+                    }
+                }, 10);
+            },
+            clearCalculatedData(clearCache = true) {
+                this.fullResANDData = this.fullResORData = this.fullResXORData = this.fullResConsistencyData = this.currentFullResData = null;
+                if (clearCache) {
+                    this.fullResPrimaryData = this.fullResSecondaryData = null;
+                    this.lastCalculatedTargetSize = 0;
+                    this.targetSizeLabel.textContent = "Target Size: N/A";
+                    this.secOrderLabel.textContent = "Secondary Order (calc): N/A";
+                }
+                this.currentDataWidth = this.currentDataHeight = 0;
+            },
+            selectCurrentDataAndDisplay(setNewPan = false, relCenter = { x: 0.5, y: 0.5 }) {
+                let baseData = null;
+                const canInvert = ["Primary", "AND", "OR", "XOR"].includes(this.displayMode);
+                const isInverted = this.invertOutputCheckbox.checked && canInvert;
+                switch (this.displayMode) {
+                    case "Primary": baseData = this.fullResPrimaryData; break;
+                    case "AND": baseData = this.fullResANDData; break;
+                    case "OR": baseData = this.fullResORData; break;
+                    case "XOR": baseData = this.fullResXORData; break;
+                    case "Consistency": baseData = this.fullResConsistencyData; break;
+                }
+                this.currentFullResData = (baseData && isInverted) ? baseData.map(row => row.map(val => 1.0 - val)) : baseData;
+                this.imageTitleLabel.textContent = `${isInverted ? 'NOT ' : ''}${this.displayMode} Pattern`;
+                if (this.currentFullResData) {
+                    this.currentDataHeight = this.currentFullResData.length;
+                    this.currentDataWidth = this.currentFullResData[0].length;
+                } else {
+                    this.currentDataWidth = this.currentDataHeight = 0;
+                }
+                if (setNewPan && this.currentDataWidth > 0) {
+                    const newImgCenterX = relCenter.x * this.currentDataWidth;
+                    const newImgCenterY = relCenter.y * this.currentDataHeight;
+                    this.panOffsetX = newImgCenterX - (this.fractalCanvas.width / this.zoomScale) / 2;
+                    this.panOffsetY = newImgCenterY - (this.fractalCanvas.height / this.zoomScale) / 2;
+                }
+                this.clampPanOffset();
+                this.updateCanvasImage();
+            },
+            updateCanvasImage() {
+                const canvasWidth = this.fractalCanvas.width;
+                const canvasHeight = this.fractalCanvas.height;
+                this.ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+                if (!this.currentFullResData || this.currentDataWidth === 0) return;
+                const viewWidthImg = canvasWidth / this.zoomScale;
+                const viewHeightImg = canvasHeight / this.zoomScale;
+                const sx = Math.round(this.panOffsetX), sy = Math.round(this.panOffsetY);
+                const sWidth = Math.round(viewWidthImg) + 1, sHeight = Math.round(viewHeightImg) + 1;
+                const sxClamped = Math.max(0, sx), syClamped = Math.max(0, sy);
+                const sWidthClamped = Math.min(sWidth, this.currentDataWidth - sxClamped), sHeightClamped = Math.min(sHeight, this.currentDataHeight - syClamped);
+                if (sWidthClamped <= 0 || sHeightClamped <= 0) return;
+                
+                const imageData = this.ctx.createImageData(sWidthClamped, sHeightClamped);
+                let dataIdx = 0;
+                for (let r = 0; r < sHeightClamped; r++) {
+                    for (let c = 0; c < sWidthClamped; c++) {
+                        const val = this.currentFullResData[syClamped + r][sxClamped + c];
+                        const displayValue = Math.round(Math.max(0, Math.min(255, val * 255)));
+                        imageData.data[dataIdx++] = displayValue; imageData.data[dataIdx++] = displayValue; imageData.data[dataIdx++] = displayValue; imageData.data[dataIdx++] = 255;
+                    }
+                }
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = sWidthClamped; tempCanvas.height = sHeightClamped;
+                tempCanvas.getContext('2d').putImageData(imageData, 0, 0);
+                this.ctx.imageSmoothingEnabled = false;
+                const dx = (sxClamped - this.panOffsetX) * this.zoomScale;
+                const dy = (syClamped - this.panOffsetY) * this.zoomScale;
+                const dWidth = sWidthClamped * this.zoomScale;
+                const dHeight = sHeightClamped * this.zoomScale;
+                this.ctx.drawImage(tempCanvas, dx, dy, dWidth, dHeight);
+            },
+            onCanvasConfigure() {
+                const rect = this.fractalCanvas.parentElement.getBoundingClientRect();
+                const newWidth = Math.floor(rect.width);
+                const newHeight = Math.floor(rect.height);
+                if (this.fractalCanvas.width !== newWidth || this.fractalCanvas.height !== newHeight) {
+                    this.fractalCanvas.width = newWidth;
+                    this.fractalCanvas.height = newHeight;
+                    this.clampPanOffset();
+                    this.updateCanvasImage();
+                }
+            },
+            exportCurrentImage() {
+                if (!this.currentFullResData) {
+                    this.setStatus("No data to export.", false, true);
+                    return;
+                }
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = this.currentDataWidth;
+                exportCanvas.height = this.currentDataHeight;
+                exportCanvas.getContext('2d').putImageData(this.arrayToImageData(this.currentFullResData), 0, 0);
+                const a = document.createElement('a');
+                a.href = exportCanvas.toDataURL("image/png");
+                a.download = `${this.imageTitleLabel.textContent.replace(/\s/g, '_')}_${this.currentDataWidth}x${this.currentDataHeight}.png`;
+                a.click();
+                this.setStatus("Image exported.");
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => FractalApp.init());
+    </script>
+</body>
+</html>
