@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rev 10.10: Adaptive Logic (Optimized)</title>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --panel-bg: rgba(20, 20, 20, 0.95);
+            --text-main: #f0f0f0;
+            --text-muted: #b0b0b0;
+            --accent: #5c9ce6;
+            --accent-b: #e65c5c;
+            --border: #666;
+            --input-bg: #222;
+        }
+
+        body { margin: 0; overflow: hidden; background-color: var(--bg-color); color: var(--text-main); font-family: 'Segoe UI', 'Roboto', sans-serif; font-size: 13px; }
+        
+        /* Left Panel */
+        #ui-container {
+            position: absolute; top: 15px; left: 15px; width: 400px;
+            background: var(--panel-bg); border: 1px solid var(--border);
+            padding: 0; max-height: 95vh; overflow-y: hidden;
+            display: flex; flex-direction: column; 
+            box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+            border-radius: 6px;
+            z-index: 10;
+            transition: height 0.3s;
+        }
+        
+        /* Right Panel */
+        #ui-container-right {
+            position: absolute; top: 15px; right: 15px; width: 280px;
+            background: var(--panel-bg); border: 1px solid var(--border);
+            padding: 0; max-height: 50vh; overflow-y: hidden;
+            display: flex; flex-direction: column;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+            border-radius: 6px;
+            z-index: 10;
+            transition: height 0.3s;
+        }
+
+        #ui-scroll-area {
+            padding: 15px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+
+        #matrix-area {
+            padding: 15px;
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
+            background: #111;
+        }
+        
+        #ui-scroll-area::-webkit-scrollbar { width: 6px; }
+        #ui-scroll-area::-webkit-scrollbar-track { background: #222; }
+        #ui-scroll-area::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+
+        .header { 
+            display: flex; justify-content: space-between; align-items: center; 
+            border-bottom: 1px solid var(--border); padding: 10px 15px; 
+            background: rgba(30,30,30,0.9);
+            flex-shrink: 0;
+        }
+        h2 { margin: 0; font-size: 16px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+        .stats { font-size: 11px; color: var(--text-muted); text-align: right; line-height: 1.4; margin-right: 10px;}
+        .stat-val { color: var(--accent); font-weight: bold; margin-left: 4px; }
+        
+        .min-btn {
+            background: none; border: 1px solid #555; color: #aaa; cursor: pointer;
+            width: 20px; height: 20px; line-height: 16px; text-align: center;
+            padding: 0; border-radius: 4px; font-size: 10px;
+        }
+        .min-btn:hover { color: #fff; border-color: #888; }
+
+        .section { background: rgba(255,255,255,0.03); border: 1px solid #444; border-radius: 5px; overflow: hidden; flex-shrink: 0;}
+        
+        .sec-header {
+            padding: 8px; background: rgba(255,255,255,0.05); cursor: pointer;
+            display: flex; align-items: center; justify-content: space-between;
+            user-select: none;
+        }
+        .sec-header:hover { background: rgba(255,255,255,0.08); }
+        .sec-title { color: var(--accent); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+        .sec-arrow { font-size: 9px; color: #888; transition: transform 0.2s; }
+        
+        .sec-content { padding: 8px; display: block; }
+        .section.collapsed .sec-content { display: none; }
+        .section.collapsed .sec-arrow { transform: rotate(-90deg); }
+
+        .grid-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .grid-col { display: flex; flex-direction: column; gap: 6px; }
+        
+        label { color: var(--text-muted); font-size: 11px; white-space: nowrap; font-weight: 500; }
+        
+        input[type="text"], input[type="number"], select { 
+            background: var(--input-bg); border: 1px solid #555; color: #fff; 
+            padding: 4px 6px; font-family: 'Consolas', monospace; font-size: 12px; 
+            width: 80px; 
+            box-sizing: border-box;
+            border-radius: 4px; transition: border 0.2s;
+        }
+        input[type="text"] { width: 100%; } 
+        select { width: 100%; }
+        input[type="number"]:focus, input[type="text"]:focus, select:focus { border-color: var(--accent); outline: none; background: #333; }
+        input[type="range"] { width: 100%; margin: 4px 0; height: 6px; accent-color: var(--accent); cursor: pointer; }
+        input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+        input[type="color"] { width: 30px; height: 18px; border: none; padding: 0; background: none; cursor: pointer; }
+
+        button {
+            background: #3a3a3a; border: 1px solid #555; color: #eee; cursor: pointer;
+            padding: 4px 10px; font-size: 11px; text-align: center; transition: all 0.2s;
+            border-radius: 4px; font-weight: 600;
+        }
+        button:hover { background: #505050; border-color: #888; }
+        button.active { background: var(--accent); color: #fff; border-color: #7bb; }
+        button#freezeBtn.active { background: #e65c5c; border-color: #f88; }
+        
+        .bin-disp { 
+            background: #080808; border: 1px solid #444; color: #5ce; 
+            padding: 6px; font-size: 12px; word-break: break-all; min-height: 18px;
+            font-family: 'Courier New', monospace; border-radius: 4px; margin-top: 4px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        .dual-panel { border: 1px solid var(--accent-b); border-left: 3px solid var(--accent-b); display:none; }
+        .sync-row { border-top: 1px solid #333; margin-top: 6px; padding-top: 6px; }
+        
+        #ui-container.minimized { height: auto; overflow: hidden; }
+        #ui-container.minimized #ui-scroll-area { display: none; }
+        #ui-container.minimized .header { border-bottom: none; }
+
+        #ui-container-right.minimized { height: auto; overflow: hidden; }
+        #ui-container-right.minimized #matrix-area { display: none; }
+        #ui-container-right.minimized .header { border-bottom: none; }
+
+        .matrix-canvas-wrapper {
+            width: 240px; height: 240px;
+            border: 1px solid #444;
+            background: #000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        canvas#matrixCanvas {
+            image-rendering: pixelated;
+            width: 100%; height: 100%;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="ui-container">
+        <div class="header">
+            <div>
+                <h2>Rev 10.10</h2>
+                <div style="font-size:10px; color:#888;">Adaptive Logic (Opt)</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;">
+                <button id="freezeBtn" style="width:50px; padding:2px; height:20px; font-size:9px;">Freeze</button>
+                <div class="stats">
+                    <div>Dec: <span id="dispDec" class="stat-val">0</span></div>
+                    <div>Vol: <span id="dispVol" class="stat-val">0</span></div>
+                </div>
+                <button class="min-btn" id="toggleUI">_</button>
+            </div>
+        </div>
+
+        <div id="ui-scroll-area">
+            <div class="section">
+                <div class="sec-header" onclick="toggleSec(this)">
+                    <span class="sec-title">Core Controls (Source A)</span>
+                    <span class="sec-arrow">▼</span>
+                </div>
+                <div class="sec-content">
+                    <div class="grid-row">
+                        <label>Mode</label>
+                        <select id="viewModeSelect">
+                            <option value="singular">Singular (Morph)</option>
+                            <option value="layered">Layered (Stack)</option>
+                            <option value="dual">Dual (Interference)</option>
+                        </select>
+                    </div>
+                    <div class="grid-row">
+                        <button id="btnDecA" style="width:30px">-</button>
+                        <input type="text" id="manualInput" value="0" placeholder="1010...">
+                        <button id="btnIncA" style="width:30px">+</button>
+                        <button id="btnSetManual" style="width:50px">Set</button>
+                    </div>
+                    
+                    <div class="sync-row">
+                        <div class="grid-row">
+                            <label style="width:40px; color:#5ce">Rot A</label>
+                            <select id="matrixRotASelect" style="width:50px; margin-right:auto;">
+                                <option value="0">0°</option>
+                                <option value="1">90°</option>
+                                <option value="2">180°</option>
+                                <option value="3">270°</option>
+                            </select>
+
+                            <label style="font-size:10px">Link U/V</label> 
+                            <input type="checkbox" id="linkUVA">
+                        </div>
+                        <div class="grid-row">
+                            <label style="font-size:10px; margin-left:auto">Speed U</label>
+                            <input type="number" id="speedUA" value="1.0" step="0.1" style="width:60px">
+                            <label style="font-size:10px;">V</label>
+                            <input type="number" id="speedVA" value="1.0" step="0.1" style="width:60px">
+                        </div>
+                        <div class="grid-row">
+                            <label style="width:10px">U</label>
+                            <input type="range" id="rotUA" min="0" max="1" step="0.001" value="0">
+                            <input type="checkbox" id="autoRotUA">
+                        </div>
+                        <div class="grid-row">
+                            <label style="width:10px">V</label>
+                            <input type="range" id="rotVA" min="0" max="1" step="0.001" value="0">
+                            <input type="checkbox" id="autoRotVA">
+                        </div>
+                    </div>
+                    
+                    <div id="binDisplay" class="bin-disp">0</div>
+                </div>
+            </div>
+
+            <div class="section dual-panel" id="dualControls">
+                <div class="sec-header" onclick="toggleSec(this)">
+                    <span class="sec-title" style="color:var(--accent-b)">Interference (Source B)</span>
+                    <span class="sec-arrow">▼</span>
+                </div>
+                <div class="sec-content">
+                    <div class="grid-row">
+                        <button id="btnDecB" style="width:30px; border-color:var(--accent-b); color:var(--accent-b)">-</button>
+                        <input type="text" id="manualInputB" value="1" style="color:var(--accent-b); border-color:var(--accent-b)">
+                        <button id="btnIncB" style="width:30px; border-color:var(--accent-b); color:var(--accent-b)">+</button>
+                        <button id="btnSetManualB" style="width:50px; border-color:var(--accent-b)">Set</button>
+                    </div>
+                    <div class="grid-row">
+                        <label>Wave Op</label>
+                        <select id="waveOpSelect">
+                            <option value="add">Add (Blend)</option>
+                            <option value="sub">Subtract (Diff)</option>
+                            <option value="mult">Multiply (Intersect)</option>
+                            <option value="max">Max (Union)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="sync-row" style="border-top-color: #533">
+                        <div class="grid-row">
+                            <label style="width:40px; color:#e55">Rot B</label>
+                            <select id="matrixRotBSelect" style="width:50px; margin-right:auto;">
+                                <option value="0">0°</option>
+                                <option value="1">90°</option>
+                                <option value="2">180°</option>
+                                <option value="3">270°</option>
+                            </select>
+
+                            <label style="font-size:10px">Link U/V</label> 
+                            <input type="checkbox" id="linkUVB">
+                            <label style="font-size:10px; margin-left:5px">Sync A->B</label> 
+                            <input type="checkbox" id="syncAB">
+                        </div>
+                        <div class="grid-row">
+                             <label style="font-size:10px; margin-left:auto">Speed U</label>
+                            <input type="number" id="speedUB" value="1.0" step="0.1" style="width:60px">
+                            <label style="font-size:10px;">V</label>
+                            <input type="number" id="speedVB" value="1.0" step="0.1" style="width:60px">
+                        </div>
+                        <div class="grid-row">
+                            <label style="width:10px">U</label>
+                            <input type="range" id="rotUB" min="0" max="1" step="0.001" value="0">
+                            <input type="checkbox" id="autoRotUB">
+                        </div>
+                        <div class="grid-row">
+                            <label style="width:10px">V</label>
+                            <input type="range" id="rotVB" min="0" max="1" step="0.001" value="0">
+                            <input type="checkbox" id="autoRotVB">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="sec-header" onclick="toggleSec(this)">
+                    <span class="sec-title">Physics & Visibility</span>
+                    <span class="sec-arrow">▼</span>
+                </div>
+                <div class="sec-content">
+                    <div class="grid-row">
+                        <label>Ring Wave (U)</label>
+                        <input type="checkbox" id="waveUCheck" checked>
+                        <label style="margin-left:auto">Tube Wave (V)</label>
+                        <input type="checkbox" id="waveVCheck" checked>
+                    </div>
+                    <div class="grid-row">
+                        <label>Amplitude</label>
+                        <input type="number" id="ampInput" value="0.5" step="0.1">
+                    </div>
+                    <input type="range" id="ampSlider" min="0" max="500" value="50">
+                    
+                    <div class="grid-row">
+                        <label>Pinch (Center)</label>
+                        <input type="checkbox" id="attenuateCheck" checked>
+                        <label style="margin-left:10px">Clamp</label>
+                        <input type="checkbox" id="clampLayersCheck" checked>
+                    </div>
+
+                    <div id="layerControls" style="display:none; margin-top:8px; border-top:1px solid #444; padding-top:8px;">
+                        <div class="grid-row">
+                            <label>Layer Range</label> 
+                            <span id="rangeLabel" style="font-size:11px; color:#fff; font-weight:bold;">0 - 0</span>
+                        </div>
+                        <div class="grid-col">
+                            <div class="grid-row">
+                                <label style="width:25px">Min</label>
+                                <input type="range" id="rangeMin" min="0" max="0" value="0">
+                            </div>
+                            <div class="grid-row">
+                                <label style="width:25px">Max</label>
+                                <input type="range" id="rangeMax" min="0" max="0" value="0">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="sec-header" onclick="toggleSec(this)">
+                    <span class="sec-title">Optics & Rendering</span>
+                    <span class="sec-arrow">▼</span>
+                </div>
+                <div class="sec-content">
+                    <div class="grid-row">
+                        <label>Tex Mode</label>
+                        <select id="texModeSelect">
+                            <option value="step">Step-by-Step (Hard)</option>
+                            <option value="gradient">Gradient (Soft)</option>
+                        </select>
+                    </div>
+                    <div class="grid-row">
+                        <label style="color:#5ce; font-style:italic; opacity:0.8;">Logic: Adaptive</label>
+                    </div>
+                    <div class="grid-row">
+                        <label>Blend</label>
+                        <select id="blendMode" style="flex:1">
+                            <option value="normal">Normal</option>
+                            <option value="additive">Additive (Glow)</option>
+                            <option value="gain">High-Gain Sim</option>
+                        </select>
+                        <button id="bgToggle" style="width:30px">BG</button>
+                    </div>
+                    
+                    <div class="grid-row">
+                        <label>Height Color</label>
+                        <input type="checkbox" id="heightColorCheck">
+                        <label style="margin-left:10px; color:#888; font-size:10px">(Overrides Tex)</label>
+                    </div>
+
+                    <div class="grid-row" style="margin-top:4px">
+                        <label>Opacity</label>
+                        <input type="number" id="opacityInput" value="0.5" step="0.0000001" min="0.0000001" max="1.0" style="width:100px">
+                    </div>
+                    <input type="range" id="opacitySlider" min="0" max="16777215" value="16777215">
+                    
+                    <div class="grid-row" style="margin-top:4px">
+                        <label>Gain</label>
+                        <input type="number" id="gainInput" value="1.0" step="0.1">
+                    </div>
+                    <input type="range" id="gainSlider" min="1" max="500" value="100">
+
+                    <div class="grid-row" style="margin-top:8px">
+                        <label>Filter</label>
+                        <select id="filterSelect" style="width:70px">
+                            <option value="nearest">Pixels</option>
+                            <option value="linear">Smooth</option>
+                        </select>
+                        <label style="margin-left:5px">Back</label>
+                        <input type="checkbox" id="backFaceCheck" checked>
+                        <label style="margin-left:auto">Wire</label>
+                        <input type="checkbox" id="wireframeCheck"> 
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="sec-header" onclick="toggleSec(this)">
+                     <span class="sec-title">Clipping Axes</span>
+                     <span class="sec-arrow">▼</span>
+                </div>
+                <div class="sec-content">
+                    <div class="grid-row">
+                        <label style="width:10px; font-weight:bold; color:#f88">X</label> 
+                        <input type="range" id="clipXSlider" min="-500" max="500" value="500">
+                        <input type="number" id="clipXInput" value="500" style="width:60px">
+                    </div>
+                    <div class="grid-row">
+                        <label style="width:10px; font-weight:bold; color:#8f8">Y</label> 
+                        <input type="range" id="clipYSlider" min="-500" max="500" value="500">
+                        <input type="number" id="clipYInput" value="500" style="width:60px">
+                    </div>
+                    <div class="grid-row">
+                        <label style="width:10px; font-weight:bold; color:#88f">Z</label> 
+                        <input type="range" id="clipZSlider" min="-500" max="500" value="500">
+                        <input type="number" id="clipZInput" value="500" style="width:60px">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="seqControl">
+                <div class="sec-header" onclick="toggleSec(this)">
+                    <span class="sec-title">Sequence Control</span>
+                    <span class="sec-arrow">▼</span>
+                </div>
+                <div class="sec-content">
+                    <div class="grid-row">
+                        <button id="playBtn" style="flex:1; height:24px;">Play Seq</button>
+                        <label>Limit</label>
+                        <input type="number" id="limitInput" value="128" style="width:60px">
+                        <label>Inf</label>
+                        <input type="checkbox" id="infiniteCheck" checked>
+                    </div>
+                    <div class="grid-row">
+                        <label>Speed</label>
+                        <input type="range" id="speedSlider" min="0.1" max="10.0" step="0.1" value="5.0">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="sec-header" onclick="toggleSec(this)">
+                     <span class="sec-title">Structure & Contours</span>
+                     <span class="sec-arrow">▼</span>
+                </div>
+                <div class="sec-content">
+                    <div class="grid-row">
+                        <label>Show Contours</label>
+                        <input type="checkbox" id="contourCheck" checked>
+                        <input type="color" id="contourColor" value="#5c9ce6">
+                    </div>
+                    <div class="grid-row">
+                        <label>Contour Step</label>
+                        <input type="number" id="contourStep" value="4" min="1" max="50">
+                    </div>
+                </div>
+            </div>
+
+            <button id="resetBtn" style="width:100%; margin-top:8px; border-color:#844; background:#522; padding:8px;">Clear Scene</button>
+        </div>
+    </div>
+
+    <div id="ui-container-right">
+        <div class="header">
+            <div>
+                <h2>Matrix Viewer</h2>
+                <div style="font-size:10px; color:#888;">2D Logic Flatmap</div>
+            </div>
+            <button class="min-btn" id="toggleUIRight">_</button>
+        </div>
+        <div id="matrix-area">
+            <div class="matrix-canvas-wrapper">
+                <canvas id="matrixCanvas"></canvas>
+            </div>
+            <div style="font-size:10px; color:#888;">
+                Updates in real-time.
+            </div>
+        </div>
+    </div>
+
+<script type="module">
+        import * as THREE from 'three';
+        import { ArcballControls } from 'three/addons/controls/ArcballControls.js';
+
+        // --- Global UI Logic ---
+        window.toggleSec = function(header) {
+            header.parentElement.classList.toggle('collapsed');
+        };
+        document.getElementById('toggleUI').addEventListener('click', () => {
+            const el = document.getElementById('ui-container');
+            el.classList.toggle('minimized');
+            document.getElementById('toggleUI').innerText = el.classList.contains('minimized') ? '+' : '_';
+        });
+        document.getElementById('toggleUIRight').addEventListener('click', () => {
+            const el = document.getElementById('ui-container-right');
+            el.classList.toggle('minimized');
+            document.getElementById('toggleUIRight').innerText = el.classList.contains('minimized') ? '+' : '_';
+        });
+
+        const config = {
+            viewMode: 'singular', 
+            baseRadius: 5.0,
+            radiusStep: 1.5,
+            uSegs: 256,
+            vSegs: 256, 
+            speed: 5.0,
+            opacity: 1,
+            gain: 1.0,
+            blendingStrategy: 'normal',
+            isPlaying: false, 
+            isTimePaused: false, 
+            maxLayers: 128,
+            isInfinite: false,
+            filterMode: 'nearest', 
+            texMode: 'step',
+            waveU: true, 
+            waveV: true, 
+            amplitude: 0.5,
+            bg: 'black',
+            clipZ: 500, clipY: 500, clipX: 500,
+            showContours: true,
+            contourStep: 4,
+            attenuate: true, 
+            clampLayers: true,
+            backFaces: true,
+            dualWaveOp: 'add',
+            matrixRotA: 0, 
+            matrixRotB: 0,
+            offsetUA: 0.0, offsetVA: 0.0,
+            autoRotUA: false, autoRotVA: false,
+            linkUVA: false,
+            phaseUVA: 0.0, 
+            speedUA: 1.0, speedVA: 1.0,
+            offsetUB: 0.0, offsetVB: 0.0,
+            autoRotUB: false, autoRotVB: false,
+            linkUVB: false,
+            phaseUVB: 0.0,
+            syncAB: false, 
+            phaseSyncU: 0.0, phaseSyncV: 0.0,
+            speedUB: 1.0, speedVB: 1.0,
+            heightColor: false
+        };
+
+        const state = {
+            strA: "0",
+            strB: "1",
+            seqIndex: 0n, 
+            layers: [],
+            morphAlpha: 0.0,
+            singularMesh: null,
+            contourLines: null,
+            acc: 0,
+            waveLUT_A: null,
+            waveLUT_B: null,
+            biasA: 0,
+            biasB: 0,
+            lutSize: 4096 
+        };
+
+        // --- Math Helpers ---
+        function gcd(a, b) { return !b ? a : gcd(b, a % b); }
+        function lcm(a, b) { if (a === 0 || b === 0) return 0; return Math.abs((a * b) / gcd(a, b)); }
+
+        const MIN_OPACITY = 0.0000001; const MAX_OPACITY = 1.0; const SLIDER_MAX = 16777215; const LOG_SCALE = Math.log(MAX_OPACITY / MIN_OPACITY);
+        function sliderToOpacity(val) { return val <= 0 ? MIN_OPACITY : MIN_OPACITY * Math.exp((val / SLIDER_MAX) * LOG_SCALE); }
+        function opacityToSlider(op) { return op <= MIN_OPACITY ? 0 : (op >= MAX_OPACITY ? SLIDER_MAX : (Math.log(op / MIN_OPACITY) / LOG_SCALE) * SLIDER_MAX); }
+
+        // --- Analytic Physics Engine (Optimized with LUT) ---
+        function parseRuns(binStr) {
+            if (!binStr) return [];
+            const runs = [];
+            let currentVal = binStr[0];
+            let currentLen = 0;
+            for (let char of binStr) {
+                if (char === currentVal) currentLen++;
+                else {
+                    runs.push({ val: parseInt(currentVal), len: currentLen });
+                    currentVal = char;
+                    currentLen = 1;
+                }
+            }
+            runs.push({ val: parseInt(currentVal), len: currentLen });
+            return runs;
+        }
+
+        function generateWaveLUT(binStr) {
+            const tripledStr = binStr + binStr + binStr;
+            const runs = parseRuns(tripledStr);
+            const totalDuration = runs.reduce((acc, r) => acc + r.len, 0);
+            const unitDuration = totalDuration / 3.0;
+            const size = state.lutSize;
+            const lut = new Float32Array(size);
+            let minVal = 0;
+
+            for(let i=0; i<size; i++) {
+                const t = i / size; 
+                const tGlobal = (t * unitDuration) + unitDuration;
+                let val = 0;
+                let timeCursor = 0;
+                for (let run of runs) {
+                    const runEnd = timeCursor + run.len;
+                    if (tGlobal >= timeCursor && tGlobal < runEnd) {
+                        const phase = (tGlobal - timeCursor) / run.len;
+                        const sign = run.val == 1 ? 1 : -1;
+                        val = sign * (1.0 * run.len) * Math.sin(Math.PI * phase);
+                        break; 
+                    }
+                    timeCursor += run.len;
+                }
+                lut[i] = val;
+                if(val < minVal) minVal = val;
+            }
+            return { lut, bias: -minVal };
+        }
+        
+        function sampleLUT(lutObj, t) {
+            let tNorm = t % 1.0;
+            if (tNorm < 0) tNorm += 1.0;
+            const idx = Math.floor(tNorm * state.lutSize);
+            return lutObj.lut[idx];
+        }
+
+        function updatePhysicsTables() {
+            const resA = generateWaveLUT(state.strA);
+            state.waveLUT_A = resA.lut;
+            state.biasA = resA.bias;
+            const resB = generateWaveLUT(state.strB);
+            state.waveLUT_B = resB.lut;
+            state.biasB = resB.bias;
+        }
+
+        function getBit(bits, u, mode) {
+            const len = bits.length;
+            if (mode === 'step') {
+                const idx = Math.floor(u * len) % len;
+                return bits[idx >= 0 ? idx : idx + len];
+            } else {
+                const pos = u * len;
+                const idx0 = Math.floor(pos);
+                const idx1 = idx0 + 1;
+                const f = pos - idx0;
+                let i0 = idx0 % len; if(i0 < 0) i0 += len;
+                let i1 = idx1 % len; if(i1 < 0) i1 += len;
+                return bits[i0] * (1.0 - f) + bits[i1] * f;
+            }
+        }
+
+        function calculateVolume(geometry) {
+            const pos = geometry.attributes.position.array;
+            const index = geometry.index.array;
+            let volume = 0;
+            const p1 = new THREE.Vector3(), p2 = new THREE.Vector3(), p3 = new THREE.Vector3();
+            for (let i = 0; i < index.length; i += 3) {
+                p1.set(pos[index[i]*3], pos[index[i]*3+1], pos[index[i]*3+2]);
+                p2.set(pos[index[i+1]*3], pos[index[i+1]*3+1], pos[index[i+1]*3+2]);
+                p3.set(pos[index[i+2]*3], pos[index[i+2]*3+1], pos[index[i+2]*3+2]);
+                volume += p1.dot(p2.cross(p3)) / 6.0;
+            }
+            return Math.abs(volume);
+        }
+
+        const matrixCanvas = document.getElementById('matrixCanvas');
+        const matrixCtx = matrixCanvas.getContext('2d');
+
+        function updateMatrixCanvas(textureData, size) {
+            if (matrixCanvas.width !== size || matrixCanvas.height !== size) {
+                matrixCanvas.width = size;
+                matrixCanvas.height = size;
+            }
+            const imgData = new ImageData(new Uint8ClampedArray(textureData), size, size);
+            matrixCtx.putImageData(imgData, 0, 0);
+        }
+
+        // --- TEXTURE LOGIC (OPTIMIZED & CORRECTED) ---
+        let cachedDataA = new Float32Array(0);
+        let cachedDataB = new Float32Array(0);
+
+        function generateDualTexture() {
+            const lenA = state.strA.length;
+            const lenB = state.strB.length;
+            const size = lcm(lenA, lenB) || lenA; 
+            if(size > 2048) return null;
+
+            const bitsA = state.strA.split('').map(c=>parseInt(c));
+            const bitsB = state.strB.split('').map(c=>parseInt(c));
+            
+            const startBitA = bitsA[0];
+            const startBitB = bitsB[0];
+            
+            const data = new Uint8Array(4 * size * size);
+            const mode = config.texMode;
+            
+            if (cachedDataA.length !== size) cachedDataA = new Float32Array(size);
+            if (cachedDataB.length !== size) cachedDataB = new Float32Array(size);
+
+            // Pre-calculate Signals
+            const signalA = new Float32Array(size);
+            const signalB = new Float32Array(size);
+            
+            for(let i=0; i<size; i++) {
+                const u = i/size;
+                if(mode==='step') signalA[i] = bitsA[Math.floor(u*lenA)%lenA];
+                else signalA[i] = getBit(bitsA, u, 'gradient');
+                
+                if(mode==='step') signalB[i] = bitsB[Math.floor(u*lenB)%lenB];
+                else signalB[i] = getBit(bitsB, u, 'gradient');
+            }
+
+            // Interpolator
+            const sampleSignal = (sig, t, size) => {
+                let pos = (t % 1.0); if(pos < 0) pos += 1.0; pos *= size;
+                const idx0 = Math.floor(pos);
+                const idx1 = (idx0 + 1) % size;
+                if (mode === 'step') return sig[idx0];
+                const f = pos - idx0;
+                return sig[idx0] * (1.0 - f) + sig[idx1] * f;
+            };
+
+            const rotA = config.matrixRotA;
+            const rotB = config.matrixRotB;
+            const offUA = config.offsetUA; const offVA = config.offsetVA;
+            const offUB = config.offsetUB; const offVB = config.offsetVB;
+
+            let idx = 0;
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    
+                    // --- Source A ---
+                    let uA, vA;
+                    if (rotA === 0) { uA = x/size; vA = y/size; }
+                    else if (rotA === 1) { uA = y/size; vA = (size-1-x)/size; }
+                    else if (rotA === 2) { uA = (size-1-x)/size; vA = (size-1-y)/size; }
+                    else { uA = (size-1-y)/size; vA = x/size; }
+                    
+                    uA += offUA; vA += offVA;
+
+                    const bXA = sampleSignal(signalA, uA, size);
+                    const bYA = sampleSignal(signalA, vA, size);
+                    
+                    let valA;
+                    // FIX: Only force edges in STEP mode. Gradient mode is pure math.
+                    if (mode === 'step') {
+                        const isRow0_A = ((vA % 1.0 + (vA<0?1:0)) * lenA) < 1.0;
+                        const isCol0_A = ((uA % 1.0 + (uA<0?1:0)) * lenA) < 1.0;
+                        if (isRow0_A) valA = bXA;
+                        else if (isCol0_A) valA = bYA;
+                        else valA = (startBitA === 1) ? (1.0 - Math.abs(bXA - bYA)) : Math.abs(bXA - bYA);
+                    } else {
+                        valA = (startBitA === 1) ? (1.0 - Math.abs(bXA - bYA)) : Math.abs(bXA - bYA);
+                    }
+
+                    // --- Source B ---
+                    let uB, vB;
+                    if (rotB === 0) { uB = x/size; vB = y/size; }
+                    else if (rotB === 1) { uB = y/size; vB = (size-1-x)/size; }
+                    else if (rotB === 2) { uB = (size-1-x)/size; vB = (size-1-y)/size; }
+                    else { uB = (size-1-y)/size; vB = x/size; }
+
+                    uB += offUB; vB += offVB;
+                    
+                    const bXB = sampleSignal(signalB, uB, size);
+                    const bYB = sampleSignal(signalB, vB, size);
+
+                    let valB;
+                    if (mode === 'step') {
+                        const isRow0_B = ((vB % 1.0 + (vB<0?1:0)) * lenB) < 1.0;
+                        const isCol0_B = ((uB % 1.0 + (uB<0?1:0)) * lenB) < 1.0;
+                        if (isRow0_B) valB = bXB;
+                        else if (isCol0_B) valB = bYB;
+                        else valB = (startBitB === 1) ? (1.0 - Math.abs(bXB - bYB)) : Math.abs(bXB - bYB);
+                    } else {
+                        valB = (startBitB === 1) ? (1.0 - Math.abs(bXB - bYB)) : Math.abs(bXB - bYB);
+                    }
+
+                    // Interference
+                    let res = 0;
+                    if(config.dualWaveOp === 'add') {
+                         let sum = valA + valB;
+                         if (mode === 'step') res = (sum > 1.0) ? 0 : sum; 
+                         else res = sum > 1.0 ? 2.0 - sum : sum;
+                    } else if(config.dualWaveOp === 'sub') {
+                        res = Math.abs(valA - valB); 
+                    } else if(config.dualWaveOp === 'mult') {
+                        res = valA * valB; 
+                    } else if(config.dualWaveOp === 'max') {
+                        res = Math.max(valA, valB); 
+                    }
+
+                    const col = res * 255;
+                    data[idx++] = col; data[idx++] = col; data[idx++] = col; data[idx++] = 255;
+                }
+            }
+            
+            updateMatrixCanvas(data, size);
+
+            const tex = new THREE.DataTexture(data, size, size);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            applyTextureSettings(tex);
+            return tex;
+        }
+
+        function generateStandardTexture(binStr) {
+            const size = binStr.length;
+            const bits = binStr.split('').map(c=>parseInt(c));
+            const startBit = bits[0];
+            const data = new Uint8Array(4 * size * size);
+            const mode = config.texMode;
+            const rot = config.matrixRotA;
+            const offUA = config.offsetUA;
+            const offVA = config.offsetVA;
+            
+            const signal = new Float32Array(size);
+            for(let i=0; i<size; i++) {
+                const u = i/size;
+                if(mode==='step') signal[i] = bits[Math.floor(u*size)%size];
+                else signal[i] = getBit(bits, u, 'gradient');
+            }
+            
+            const sampleSignal = (sig, t, size) => {
+                let pos = (t % 1.0); if(pos < 0) pos += 1.0; pos *= size;
+                const idx0 = Math.floor(pos);
+                const idx1 = (idx0 + 1) % size;
+                if (mode === 'step') return sig[idx0];
+                const f = pos - idx0;
+                return sig[idx0] * (1.0 - f) + sig[idx1] * f;
+            };
+
+            let idx=0;
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    let uA, vA;
+                    if (rot === 0) { uA = x/size; vA = y/size; }
+                    else if (rot === 1) { uA = y/size; vA = (size-1-x)/size; }
+                    else if (rot === 2) { uA = (size-1-x)/size; vA = (size-1-y)/size; }
+                    else { uA = (size-1-y)/size; vA = x/size; }
+                    uA += offUA; vA += offVA;
+
+                    const bX = sampleSignal(signal, uA, size);
+                    const bY = sampleSignal(signal, vA, size);
+                    
+                    let val;
+                    if(mode === 'step') {
+                        const isRow0 = ((vA % 1.0 + (vA<0?1:0)) * size) < 1.0;
+                        const isCol0 = ((uA % 1.0 + (uA<0?1:0)) * size) < 1.0;
+                        if(isRow0) val=bX;
+                        else if(isCol0) val=bY;
+                        else val = (startBit===1) ? (1.0-Math.abs(bX-bY)) : Math.abs(bX-bY);
+                    } else {
+                         val = (startBit===1) ? (1.0-Math.abs(bX-bY)) : Math.abs(bX-bY);
+                    }
+
+                    const col = val * 255;
+                    data[idx++]=col; data[idx++]=col; data[idx++]=col; data[idx++]=255;
+                }
+            }
+            
+            updateMatrixCanvas(data, size);
+            
+            const tex = new THREE.DataTexture(data, size, size);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            applyTextureSettings(tex);
+            return tex;
+        }
+
+        function applyTextureSettings(tex) {
+            if(config.texMode === 'step') { tex.minFilter = THREE.NearestFilter; tex.magFilter = THREE.NearestFilter; }
+            else { 
+                if(config.filterMode === 'nearest') { tex.minFilter = THREE.NearestFilter; tex.magFilter = THREE.NearestFilter; }
+                else { tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; }
+            }
+            tex.generateMipmaps = false; tex.needsUpdate = true;
+        }
+
+        // --- Three.js ---
+        const scene = new THREE.Scene(); scene.background = new THREE.Color(0x000000);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 10000); camera.position.set(0, 60, 80);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight); renderer.localClippingEnabled = true; renderer.sortObjects = true;
+        document.body.appendChild(renderer.domElement);
+        
+        const controls = new ArcballControls(camera, renderer.domElement, scene);
+        controls.enableAnimations = true;   // Enable damping (inertia)
+        controls.dampingFactor = 30;        // Higher = faster stop, Lower = more float
+        controls.wMax = 20;                 // Max angular velocity
+        controls.setGizmosVisible(false);   // Hide the "trackball" visual guide
+        controls.enablePan = false;         // Keep the fractal centered
+        controls.cursorZoom = true;         // Allow zooming to point under cursor
+        controls.radiusFactor = 1.0;        // Full screen rotation area
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.3)); 
+        const dl = new THREE.DirectionalLight(0xffffff, 1.2); dl.position.set(50, 100, -50); scene.add(dl);
+        const clipPlaneZ = new THREE.Plane(new THREE.Vector3(0,0,-1), config.clipZ);
+        const clipPlaneY = new THREE.Plane(new THREE.Vector3(0,-1,0), config.clipY);
+        const clipPlaneX = new THREE.Plane(new THREE.Vector3(-1,0,0), config.clipX);
+
+        function createContourLines(parentMesh) {
+            const geometry = new THREE.BufferGeometry();
+            const maxSegs = (config.uSegs*(config.vSegs+1)) + (config.vSegs*(config.uSegs+1));
+            geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(maxSegs*2*3), 3));
+            const mat = new THREE.LineBasicMaterial({ color: document.getElementById('contourColor').value, transparent: true, opacity: 0.6, clippingPlanes: [clipPlaneZ, clipPlaneY, clipPlaneX] });
+            const lines = new THREE.LineSegments(geometry, mat); lines.userData={isContour:true}; scene.add(lines); return lines;
+        }
+        function updateContourGeometry(lineMesh, pos) {
+            if(!config.showContours){ if(lineMesh) lineMesh.visible=false; return; } lineMesh.visible=true;
+            const step=config.contourStep; const arr=lineMesh.geometry.attributes.position.array; let ptr=0;
+            const uC=config.uSegs+1; const vC=config.vSegs+1;
+            const getV=(i,j)=>{const idx=(i*vC+j)*3; return [pos[idx],pos[idx+1],pos[idx+2]];};
+            for(let j=0;j<vC;j++) if(j%step===0||j===vC-1) for(let i=0;i<config.uSegs;i++) { const p1=getV(i,j); const p2=getV(i+1,j); arr[ptr++]=p1[0]; arr[ptr++]=p1[1]; arr[ptr++]=p1[2]; arr[ptr++]=p2[0]; arr[ptr++]=p2[1]; arr[ptr++]=p2[2]; }
+            for(let i=0;i<uC;i++) if(i%step===0||i===uC-1) for(let j=0;j<config.vSegs;j++) { const p1=getV(i,j); const p2=getV(i,j+1); arr[ptr++]=p1[0]; arr[ptr++]=p1[1]; arr[ptr++]=p1[2]; arr[ptr++]=p2[0]; arr[ptr++]=p2[1]; arr[ptr++]=p2[2]; }
+            for(let k=ptr;k<arr.length;k++)arr[k]=0;
+            lineMesh.geometry.attributes.position.needsUpdate=true; lineMesh.material.color.set(document.getElementById('contourColor').value);
+        }
+
+        // --- SEAM FIX ---
+        function healNormals(geometry, uSegs, vSegs) {
+            const normals = geometry.attributes.normal.array;
+            const vC = vSegs + 1;
+            for(let j=0; j<=vSegs; j++) {
+                const idx0 = (0 * vC + j);
+                const idx1 = (uSegs * vC + j);
+                const n0x = normals[idx0*3], n0y = normals[idx0*3+1], n0z = normals[idx0*3+2];
+                const n1x = normals[idx1*3], n1y = normals[idx1*3+1], n1z = normals[idx1*3+2];
+                
+                let ax = n0x+n1x, ay = n0y+n1y, az = n0z+n1z;
+                const len = Math.sqrt(ax*ax + ay*ay + az*az);
+                if(len > 0) { ax/=len; ay/=len; az/=len; }
+                
+                normals[idx0*3]=ax; normals[idx0*3+1]=ay; normals[idx0*3+2]=az;
+                normals[idx1*3]=ax; normals[idx1*3+1]=ay; normals[idx1*3+2]=az;
+            }
+            geometry.attributes.normal.needsUpdate = true;
+        }
+
+        function createBaseMesh(strA) {
+            const geo = new THREE.BufferGeometry();
+            const vCount = (config.uSegs+1)*(config.vSegs+1);
+            const pos = new Float32Array(vCount*3); 
+            const uvs = new Float32Array(vCount*2);
+            const colors = new Float32Array(vCount*3);
+
+            const indices = [];
+            let ptr=0;
+            for(let i=0;i<=config.uSegs;i++) for(let j=0;j<=config.vSegs;j++) { 
+                uvs[ptr*2]=i/config.uSegs; uvs[ptr*2+1]=j/config.vSegs; 
+                colors[ptr*3]=1; colors[ptr*3+1]=1; colors[ptr*3+2]=1;
+                ptr++; 
+            }
+            const vC=config.vSegs+1;
+            for(let i=0;i<config.uSegs;i++) for(let j=0;j<config.vSegs;j++) { const a=vC*i+j; const b=vC*(i+1)+j; const c=vC*(i+1)+(j+1); const d=vC*i+(j+1); indices.push(a,b,d); indices.push(b, c, d); }
+            geo.setIndex(indices); 
+            geo.setAttribute('position', new THREE.BufferAttribute(pos,3)); 
+            geo.setAttribute('uv', new THREE.BufferAttribute(uvs,2));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+            
+            let tex = null;
+            if(config.viewMode==='dual') tex = generateDualTexture();
+            else tex = generateStandardTexture(strA);
+
+            const mat = new THREE.MeshLambertMaterial({ 
+                map:tex, 
+                side:config.backFaces?2:0, 
+                clippingPlanes:[clipPlaneZ,clipPlaneY,clipPlaneX], 
+                clipShadows:true, 
+                transparent:true, 
+                dithering:true,
+                depthWrite: true, 
+                depthTest: true,
+                vertexColors: false
+            });
+            updateSingleMaterial(mat);
+            const mesh = new THREE.Mesh(geo, mat); mesh.userData={n:0}; mesh.renderOrder=0; mesh.userData.contourLines=createContourLines(mesh);
+            return mesh;
+        }
+
+        function updateSingleMaterial(mat) {
+            const op=config.opacity; let gain=config.gain; if(op<0.02) gain*=op/0.02; mat.color.setScalar(gain);
+            mat.depthWrite = true; mat.dithering = true;
+
+            if(config.blendingStrategy==='additive'){mat.blending=THREE.AdditiveBlending; mat.opacity=op;}
+            else if(config.blendingStrategy==='gain'){mat.blending=THREE.NormalBlending; mat.opacity=Math.min(1.0,op*50); mat.color.setScalar((op/mat.opacity)*gain);}
+            else {mat.blending=THREE.NormalBlending; mat.opacity=op;}
+            mat.wireframe=document.getElementById('wireframeCheck').checked; 
+            
+            if(config.heightColor) {
+                mat.vertexColors = true;
+                mat.map = null;
+            } else {
+                mat.vertexColors = false;
+            }
+
+            if(mat.map) applyTextureSettings(mat.map);
+            mat.needsUpdate = true;
+        }
+
+        function getRotatedNormals(uNorm, vNorm, rot) {
+             let rx = uNorm, ry = vNorm;
+             if (rot === 1) { rx = vNorm; ry = 1.0 - uNorm; }
+             else if (rot === 2) { rx = 1.0 - uNorm; ry = 1.0 - vNorm; }
+             else if (rot === 3) { rx = 1.0 - vNorm; ry = uNorm; }
+             return { u: rx, v: ry };
+        }
+
+        // --- Mesh Logic (Optimized) ---
+        function updateMeshGeometry(mesh, strA, strB, alpha) {
+            if(!mesh) return;
+            const geo = mesh.geometry;
+            const positions = geo.attributes.position.array;
+            const colors = geo.attributes.color.array;
+
+            let R = config.baseRadius;
+            if(config.viewMode === 'layered') {
+                const n = mesh.userData.n;
+                R = config.baseRadius + (parseInt(n) * config.radiusStep);
+            }
+
+            const amp = config.amplitude;
+            let ptr = 0;
+            const rotA = config.matrixRotA;
+            const rotB = config.matrixRotB;
+
+            const lutA = state.waveLUT_A;
+            const lutB = state.waveLUT_B;
+            const biasA = state.biasA;
+            const biasB = state.biasB;
+            
+            const lutObjA = { lut: lutA };
+            const lutObjB = { lut: lutB };
+
+            if (config.viewMode === 'dual') {
+                for(let i=0; i<=config.uSegs; i++) {
+                    const u = (i/config.uSegs)*Math.PI*2;
+                    const uNorm = i/config.uSegs;
+                    for(let j=0; j<=config.vSegs; j++) {
+                        const v = (j/config.vSegs)*Math.PI*2;
+                        const vNorm = j/config.vSegs;
+
+                        const rA = getRotatedNormals(uNorm, vNorm, rotA);
+                        let uA = rA.u + config.offsetUA; 
+                        let vA = rA.v + config.offsetVA;
+                        let valA = 0;
+                        if(config.waveU) valA += sampleLUT(lutObjA, uA);
+                        if(config.waveV) valA += sampleLUT(lutObjA, vA) + biasA;
+
+                        const rB = getRotatedNormals(uNorm, vNorm, rotB);
+                        let uB = rB.u + config.offsetUB;
+                        let vB = rB.v + config.offsetVB;
+                        let valB = 0;
+                        if(config.waveU) valB += sampleLUT(lutObjB, uB);
+                        if(config.waveV) valB += sampleLUT(lutObjB, vB) + biasB;
+
+                        let rawDisp = 0;
+                        if(config.dualWaveOp === 'add') {
+                            let sum = (valA + valB); 
+                            rawDisp = sum * 0.5;
+                        } else if(config.dualWaveOp === 'sub') {
+                            rawDisp = Math.abs(valA - valB);
+                        } else if(config.dualWaveOp === 'mult') {
+                            rawDisp = valA * valB;
+                        } else if(config.dualWaveOp === 'max') {
+                            rawDisp = Math.max(valA, valB);
+                        }
+
+                        rawDisp *= amp;
+                        if(config.attenuate) rawDisp *= (1.0 + Math.cos(v))*0.5;
+                        if(config.clampLayers && rawDisp > config.radiusStep) rawDisp = config.radiusStep; 
+
+                        let r = R + rawDisp;
+                        positions[ptr*3] = (R+r*Math.cos(v))*Math.cos(u);
+                        positions[ptr*3+1] = (R+r*Math.cos(v))*Math.sin(u);
+                        positions[ptr*3+2] = r*Math.sin(v);
+
+                        if (config.heightColor) {
+                            const h = (r - R) / (amp * 2);
+                            const t = Math.max(0, Math.min(1, h + 0.5));
+                            colors[ptr*3] = t; colors[ptr*3+1] = t; colors[ptr*3+2] = t;
+                        }
+                        ptr++;
+                    }
+                }
+            } else {
+                const targetLut = lutObjA; 
+                const targetBias = biasA;
+                
+                for(let i=0; i<=config.uSegs; i++) {
+                    const u = (i/config.uSegs)*Math.PI*2;
+                    let uNorm = i/config.uSegs;
+
+                    for(let j=0; j<=config.vSegs; j++) {
+                        const v = (j/config.vSegs)*Math.PI*2;
+                        let vNorm = j/config.vSegs;
+                        
+                        const rA = getRotatedNormals(uNorm, vNorm, rotA);
+                        let uA = rA.u + config.offsetUA; 
+                        let vA = rA.v + config.offsetVA;
+
+                        let dispU = 0;
+                        if(config.waveU) dispU = sampleLUT(targetLut, uA);
+
+                        let dispV = 0;
+                        if(config.waveV) dispV = sampleLUT(targetLut, vA) + targetBias;
+                        
+                        let rawDisp = (dispU + dispV) * amp;
+                        if(config.attenuate) rawDisp *= (1.0 + Math.cos(v))*0.5;
+                        if(config.clampLayers && rawDisp > config.radiusStep) rawDisp = config.radiusStep; 
+                        
+                        let r = R + rawDisp;
+                        positions[ptr*3] = (R+r*Math.cos(v))*Math.cos(u);
+                        positions[ptr*3+1] = (R+r*Math.cos(v))*Math.sin(u);
+                        positions[ptr*3+2] = r*Math.sin(v);
+
+                         if (config.heightColor) {
+                            const h = (r - R) / (amp * 2); 
+                            const t = Math.max(0, Math.min(1, h + 0.5)); 
+                            colors[ptr*3] = t; colors[ptr*3+1] = t; colors[ptr*3+2] = t;     
+                        }
+
+                        ptr++;
+                    }
+                }
+            }
+            geo.attributes.position.needsUpdate = true; 
+            if (config.heightColor) geo.attributes.color.needsUpdate = true;
+            geo.computeVertexNormals();
+            healNormals(geo, config.uSegs, config.vSegs); 
+            
+            if (mesh === state.singularMesh) {
+                const vol = calculateVolume(geo);
+                document.getElementById('dispVol').innerText = vol.toFixed(0);
+            }
+
+            if (mesh.userData.contourLines) updateContourGeometry(mesh.userData.contourLines, positions);
+        }
+
+        // --- Logic ---
+        function setMode(mode) {
+            config.viewMode = mode;
+            document.getElementById('layerControls').style.display = mode === 'layered' ? 'block' : 'none';
+            document.getElementById('dualControls').style.display = mode === 'dual' ? 'block' : 'none';
+            document.getElementById('seqControl').style.display = mode === 'dual' ? 'none' : 'block';
+            
+            resetScene();
+            updatePhysicsTables(); 
+
+            if(mode === 'singular' || mode === 'dual') {
+                state.singularMesh = createBaseMesh(state.strA);
+                scene.add(state.singularMesh);
+                updateMeshGeometry(state.singularMesh, state.strA, state.strB, 0);
+            } else {
+                addLayeredMesh(state.seqIndex);
+            }
+            updateUI();
+        }
+
+        function addLayeredMesh(idx) {
+            const str = BigInt(idx).toString(2);
+            
+            const tempLUT = generateWaveLUT(str);
+            const oldLUT = state.waveLUT_A; const oldBias = state.biasA;
+            state.waveLUT_A = tempLUT.lut; state.biasA = tempLUT.bias;
+
+            const mesh = createBaseMesh(str); 
+            mesh.userData.n = idx;
+            mesh.renderOrder = parseInt(idx); 
+            
+            scene.add(mesh); state.layers.push(mesh);
+            updateMeshGeometry(mesh, str, null, 0); 
+            
+            state.waveLUT_A = oldLUT; state.biasA = oldBias;
+
+            updateRangeSliders();
+        }
+
+        function resetScene() {
+            if(state.singularMesh) {
+                scene.remove(state.singularMesh); if(state.singularMesh.userData.contourLines) scene.remove(state.singularMesh.userData.contourLines);
+                state.singularMesh.geometry.dispose(); state.singularMesh.material.dispose(); state.singularMesh = null;
+            }
+            state.layers.forEach(m=>{scene.remove(m); if(m.userData.contourLines) scene.remove(m.userData.contourLines); m.geometry.dispose(); m.material.dispose();}); state.layers=[];
+        }
+
+        function updateEverything(forceTexture = false) {
+            if(state.singularMesh) {
+                updateSingleMaterial(state.singularMesh.material);
+                if (!config.heightColor && (!state.singularMesh.material.map || forceTexture)) {
+                     const tex = config.viewMode === 'dual' ? generateDualTexture() : generateStandardTexture(state.strA);
+                     if(tex) {
+                        if(state.singularMesh.material.map) state.singularMesh.material.map.dispose();
+                        state.singularMesh.material.map = tex;
+                        state.singularMesh.material.needsUpdate = true;
+                     }
+                } else if (config.heightColor) {
+                    config.viewMode === 'dual' ? generateDualTexture() : generateStandardTexture(state.strA);
+                }
+            }
+            state.layers.forEach(m => {
+                updateSingleMaterial(m.material);
+                if (!config.heightColor && (!m.material.map || forceTexture)) {
+                     const tex = generateStandardTexture(BigInt(m.userData.n).toString(2));
+                     if(tex) {
+                        if(m.material.map) m.material.map.dispose();
+                        m.material.map = tex;
+                        m.material.needsUpdate = true;
+                     }
+                }
+            });
+
+            if(config.viewMode === 'dual' && state.singularMesh) {
+                if(!config.heightColor) {
+                     const tex = generateDualTexture();
+                     if(tex) {
+                        if(state.singularMesh.material.map) state.singularMesh.material.map.dispose();
+                        state.singularMesh.material.map = tex;
+                        state.singularMesh.material.needsUpdate = true;
+                     }
+                }
+                updateMeshGeometry(state.singularMesh, state.strA, state.strB, 0);
+            } else if (config.viewMode === 'singular' && state.singularMesh) {
+                updateMeshGeometry(state.singularMesh, state.strA, null, state.morphAlpha);
+            } else {
+                state.layers.forEach(m => {
+                    const str = BigInt(m.userData.n).toString(2);
+                    const temp = generateWaveLUT(str);
+                    const old = state.waveLUT_A; const oldB = state.biasA;
+                    state.waveLUT_A = temp.lut; state.biasA = temp.bias;
+                    updateMeshGeometry(m, str, null, 0);
+                    state.waveLUT_A = old; state.biasA = oldB;
+                });
+            }
+        }
+
+        // --- Loop ---
+        function tickSingular(dt) {
+            if(!config.isPlaying) return;
+            state.morphAlpha += dt * config.speed;
+            
+            if(state.morphAlpha >= 1.0) {
+                state.seqIndex++;
+                state.strA = BigInt(state.seqIndex).toString(2);
+                updatePhysicsTables(); 
+                updateUI();
+                state.morphAlpha = 0; 
+            }
+
+            if(state.singularMesh) {
+                if (!config.heightColor) {
+                    const nextStr = BigInt(state.seqIndex + 1n).toString(2);
+                    const targetStr = state.morphAlpha > 0.5 ? nextStr : state.strA;
+                    if(state.singularMesh.userData.lastTex !== targetStr) {
+                        const tex = generateStandardTexture(targetStr);
+                        if(state.singularMesh.material.map) state.singularMesh.material.map.dispose();
+                        state.singularMesh.material.map = tex;
+                        state.singularMesh.userData.lastTex = targetStr;
+                        state.singularMesh.material.needsUpdate = true;
+                    }
+                }
+                updateMeshGeometry(state.singularMesh, state.strA, null, state.morphAlpha);
+            }
+        }
+
+        function tickLayered() {
+            if(state.layers.length >= config.maxLayers) {
+                if(config.isInfinite) {
+                    const o = state.layers.shift(); scene.remove(o); if(o.userData.contourLines) scene.remove(o.userData.contourLines); o.geometry.dispose(); o.material.dispose();
+                } else { config.isPlaying = false; updatePlayBtn(); return; }
+            }
+            state.seqIndex++; 
+            state.strA = BigInt(state.seqIndex).toString(2); 
+            addLayeredMesh(state.seqIndex); 
+            
+            const maxVal = state.layers.length;
+            const rMax = document.getElementById('rangeMax');
+            const rMin = document.getElementById('rangeMin');
+            rMax.max = maxVal; rMax.value = maxVal;
+            rMin.max = maxVal;
+            updateRangeSliders();
+            
+            updateUI();
+        }
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate); 
+            let dt = clock.getDelta();
+            
+            // FREEZE logic
+            if(config.isTimePaused) dt = 0;
+            
+            controls.target.set(0,0,0);
+            controls.update();
+
+            let rotChanged = false;
+            
+            // Auto-Rotate Logic 
+            if (config.autoRotUA && !config.isTimePaused) {
+                config.offsetUA += 0.1 * dt * (config.speed * 0.2 * config.speedUA);
+                config.offsetUA = config.offsetUA % 10000; 
+                document.getElementById('rotUA').value = (config.offsetUA % 1);
+                rotChanged = true;
+            }
+            
+            if (config.autoRotVA && !config.linkUVA && !config.isTimePaused) {
+                config.offsetVA += 0.1 * dt * (config.speed * 0.2 * config.speedVA);
+                document.getElementById('rotVA').value = (config.offsetVA % 1);
+                rotChanged = true;
+            }
+
+            if (!config.syncAB) {
+                if (config.autoRotUB && !config.isTimePaused) {
+                    config.offsetUB += 0.1 * dt * (config.speed * 0.2 * config.speedUB);
+                    document.getElementById('rotUB').value = (config.offsetUB % 1);
+                    rotChanged = true;
+                }
+                if (config.autoRotVB && !config.linkUVB && !config.isTimePaused) {
+                    config.offsetVB += 0.1 * dt * (config.speed * 0.2 * config.speedVB);
+                    document.getElementById('rotVB').value = (config.offsetVB % 1);
+                    rotChanged = true;
+                }
+            }
+
+            // --- CONSTRAINT SOLVER (PHASE LOCKING) ---
+            if (config.linkUVA) {
+                config.offsetVA = config.offsetUA + config.phaseUVA;
+                document.getElementById('rotVA').value = (config.offsetVA % 1);
+                rotChanged = true;
+            }
+
+            if (config.syncAB) {
+                config.offsetUB = config.offsetUA + config.phaseSyncU;
+                document.getElementById('rotUB').value = (config.offsetUB % 1);
+                config.offsetVB = config.offsetVA + config.phaseSyncV;
+                document.getElementById('rotVB').value = (config.offsetVB % 1);
+                rotChanged = true;
+            } else {
+                if (config.linkUVB) {
+                    config.offsetVB = config.offsetUB + config.phaseUVB;
+                    document.getElementById('rotVB').value = (config.offsetVB % 1);
+                    rotChanged = true;
+                }
+            }
+            
+            if (rotChanged && (config.viewMode === 'dual' || config.viewMode === 'singular')) {
+                updateEverything(true); 
+            }
+
+            if(config.viewMode === 'singular') {
+                tickSingular(dt);
+            } else if(config.viewMode === 'layered' && config.isPlaying && !config.isTimePaused) {
+                if(!state.acc) state.acc=0; state.acc+=dt;
+                if(state.acc >= (1.0/config.speed)) { tickLayered(); state.acc=0; }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // --- Event Listeners ---
+        document.getElementById('viewModeSelect').addEventListener('change', (e) => { config.isPlaying = false; updatePlayBtn(); setMode(e.target.value); });
+        
+        // Source A Inputs
+        document.getElementById('btnSetManual').addEventListener('click', () => {
+            let val = document.getElementById('manualInput').value || "0";
+            state.strA = val.replace(/[^01]/g, '') || "0";
+            try { state.seqIndex = BigInt("0b" + state.strA); } catch(e) { state.seqIndex = 0n; }
+            updatePhysicsTables();
+            updateUI();
+            if(config.viewMode === 'layered') { resetScene(); addLayeredMesh(state.seqIndex); }
+            else { state.morphAlpha=0; setMode(config.viewMode); }
+        });
+        document.getElementById('btnIncA').addEventListener('click', () => { 
+            if(config.viewMode === 'layered') {
+                tickLayered(); 
+            } else {
+                state.seqIndex++; 
+                state.strA = state.seqIndex.toString(2); 
+                updatePhysicsTables();
+                updateUI();
+                document.getElementById('btnSetManual').click();
+            }
+        });
+        document.getElementById('btnDecA').addEventListener('click', () => { 
+            if(state.seqIndex > 0n) state.seqIndex--; state.strA = state.seqIndex.toString(2); 
+            updatePhysicsTables(); updateUI();
+            if(config.viewMode === 'layered') { resetScene(); addLayeredMesh(state.seqIndex); } else document.getElementById('btnSetManual').click();
+        });
+
+        // Source B Inputs
+        document.getElementById('btnSetManualB').addEventListener('click', () => {
+            let val = document.getElementById('manualInputB').value || "0";
+            state.strB = val.replace(/[^01]/g, '') || "0";
+            document.getElementById('manualInputB').value = state.strB;
+            updatePhysicsTables(); updateEverything(true);
+        });
+        document.getElementById('btnIncB').addEventListener('click', () => {
+            let val = BigInt("0b" + state.strB); val++; state.strB = val.toString(2);
+            document.getElementById('manualInputB').value = state.strB; updatePhysicsTables(); updateEverything(true);
+        });
+        document.getElementById('btnDecB').addEventListener('click', () => {
+            let val = BigInt("0b" + state.strB); if(val > 0n) val--; state.strB = val.toString(2);
+            document.getElementById('manualInputB').value = state.strB; updatePhysicsTables(); updateEverything(true);
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            config.isPlaying = false; updatePlayBtn(); resetScene();
+            state.strA = "0"; state.strB = "1"; state.seqIndex = 0n;
+            updatePhysicsTables();
+            updateUI();
+            document.getElementById('manualInputB').value = "1";
+            config.offsetUA = 0; config.offsetVA = 0; config.offsetUB = 0; config.offsetVB = 0;
+            document.getElementById('rotUA').value = 0; document.getElementById('rotVA').value = 0;
+            document.getElementById('rotUB').value = 0; document.getElementById('rotVB').value = 0;
+            setMode(config.viewMode);
+        });
+
+        // Rotation Logic Source A
+        const rUA = document.getElementById('rotUA');
+        rUA.addEventListener('input', (e) => { 
+            config.offsetUA = parseFloat(e.target.value); 
+            if(config.linkUVA) { 
+                config.offsetVA = config.offsetUA + config.phaseUVA; 
+                document.getElementById('rotVA').value = (config.offsetVA % 1);
+            }
+            updateEverything(true); 
+        });
+        const rVA = document.getElementById('rotVA');
+        rVA.addEventListener('input', (e) => { 
+            config.offsetVA = parseFloat(e.target.value); 
+            if(config.linkUVA) { config.phaseUVA = config.offsetVA - config.offsetUA; }
+            updateEverything(true); 
+        });
+        
+        document.getElementById('autoRotUA').addEventListener('change', (e) => config.autoRotUA = e.target.checked);
+        document.getElementById('autoRotVA').addEventListener('change', (e) => config.autoRotVA = e.target.checked);
+        
+        document.getElementById('linkUVA').addEventListener('change', (e) => { 
+            config.linkUVA = e.target.checked; 
+            if(config.linkUVA) { config.phaseUVA = config.offsetVA - config.offsetUA; } 
+        });
+        
+        document.getElementById('speedUA').addEventListener('input', (e) => config.speedUA = parseFloat(e.target.value));
+        document.getElementById('speedVA').addEventListener('input', (e) => config.speedVA = parseFloat(e.target.value));
+
+        // Rotation Logic Source B
+        const rUB = document.getElementById('rotUB');
+        rUB.addEventListener('input', (e) => { 
+            config.offsetUB = parseFloat(e.target.value); 
+            if(config.linkUVB) { 
+                config.offsetVB = config.offsetUB + config.phaseUVB;
+                document.getElementById('rotVB').value = (config.offsetVB % 1);
+            }
+            if(config.syncAB) { config.phaseSyncU = config.offsetUB - config.offsetUA; }
+            updateEverything(true); 
+        });
+        const rVB = document.getElementById('rotVB');
+        rVB.addEventListener('input', (e) => { 
+            config.offsetVB = parseFloat(e.target.value); 
+            if(config.linkUVB) { config.phaseUVB = config.offsetVB - config.offsetUB; }
+            if(config.syncAB) { config.phaseSyncV = config.offsetVB - config.offsetVA; }
+            updateEverything(true); 
+        });
+
+        document.getElementById('autoRotUB').addEventListener('change', (e) => config.autoRotUB = e.target.checked);
+        document.getElementById('autoRotVB').addEventListener('change', (e) => config.autoRotVB = e.target.checked);
+        
+        document.getElementById('linkUVB').addEventListener('change', (e) => { 
+            config.linkUVB = e.target.checked; 
+            if(config.linkUVB) { config.phaseUVB = config.offsetVB - config.offsetUB; } 
+        });
+        
+        document.getElementById('syncAB').addEventListener('change', (e) => { 
+            config.syncAB = e.target.checked; 
+            if(config.syncAB) { 
+                config.phaseSyncU = config.offsetUB - config.offsetUA;
+                config.phaseSyncV = config.offsetVB - config.offsetVA;
+            }
+        });
+        
+        document.getElementById('speedUB').addEventListener('input', (e) => config.speedUB = parseFloat(e.target.value));
+        document.getElementById('speedVB').addEventListener('input', (e) => config.speedVB = parseFloat(e.target.value));
+
+        document.getElementById('waveOpSelect').addEventListener('change', (e) => { config.dualWaveOp = e.target.value; updateEverything(true); });
+
+        // Freeze / Play
+        document.getElementById('playBtn').addEventListener('click', () => { config.isPlaying = !config.isPlaying; updatePlayBtn(); });
+        function updatePlayBtn() { const b = document.getElementById('playBtn'); b.innerText = config.isPlaying ? "Pause Seq" : "Play Seq"; b.classList.toggle('active', config.isPlaying); }
+        
+        document.getElementById('freezeBtn').addEventListener('click', () => { 
+            config.isTimePaused = !config.isTimePaused;
+            document.getElementById('freezeBtn').classList.toggle('active', config.isTimePaused);
+        });
+
+        document.getElementById('contourCheck').addEventListener('change', (e) => { config.showContours = e.target.checked; updateEverything(); updateRangeSliders(); });
+        document.getElementById('contourStep').addEventListener('change', (e) => { config.contourStep = parseInt(e.target.value); updateEverything(); });
+        document.getElementById('contourColor').addEventListener('input', (e) => { const c = e.target.value; if(state.singularMesh && state.singularMesh.userData.contourLines) state.singularMesh.userData.contourLines.material.color.set(c); state.layers.forEach(m => m.userData.contourLines?.material.color.set(c)); });
+        document.getElementById('attenuateCheck').addEventListener('change', (e) => { config.attenuate = e.target.checked; updateEverything(); });
+        document.getElementById('clampLayersCheck').addEventListener('change', (e) => { config.clampLayers = e.target.checked; updateEverything(); });
+        document.getElementById('waveUCheck').addEventListener('change', (e) => { config.waveU = e.target.checked; updateEverything(); });
+        document.getElementById('waveVCheck').addEventListener('change', (e) => { config.waveV = e.target.checked; updateEverything(); });
+        document.getElementById('ampInput').addEventListener('input', (e) => { config.amplitude = parseFloat(e.target.value); document.getElementById('ampSlider').value = config.amplitude*100; updateEverything(); });
+        document.getElementById('ampSlider').addEventListener('input', (e) => { config.amplitude = parseFloat(e.target.value)/100; document.getElementById('ampInput').value = config.amplitude; updateEverything(); });
+        document.getElementById('speedSlider').addEventListener('input', (e) => config.speed = parseFloat(e.target.value));
+
+        document.getElementById('heightColorCheck').addEventListener('change', (e) => { config.heightColor = e.target.checked; updateEverything(true); });
+        
+        // New Texture Mode
+        document.getElementById('texModeSelect').addEventListener('change', (e) => { config.texMode = e.target.value; updateEverything(true); });
+        
+        // Per-String Matrix Rotation
+        document.getElementById('matrixRotASelect').addEventListener('change', (e) => { config.matrixRotA = parseInt(e.target.value); updateEverything(true); });
+        document.getElementById('matrixRotBSelect').addEventListener('change', (e) => { config.matrixRotB = parseInt(e.target.value); updateEverything(true); });
+
+        // Rendering
+        const syncMat = () => { if(state.singularMesh) updateSingleMaterial(state.singularMesh.material); state.layers.forEach(m=>updateSingleMaterial(m.material)); };
+        const opS = document.getElementById('opacitySlider'), opI = document.getElementById('opacityInput');
+        opS.addEventListener('input', (e) => { config.opacity = sliderToOpacity(parseFloat(e.target.value)); opI.value = config.opacity.toFixed(8); syncMat(); });
+        opI.addEventListener('change', (e) => { config.opacity = parseFloat(e.target.value); opS.value = opacityToSlider(config.opacity); syncMat(); });
+        const gnS = document.getElementById('gainSlider'), gnI = document.getElementById('gainInput');
+        gnS.addEventListener('input', (e) => { config.gain = parseFloat(e.target.value)/100; gnI.value = config.gain; syncMat(); });
+        gnI.addEventListener('change', (e) => { config.gain = parseFloat(e.target.value); gnS.value = config.gain*100; syncMat(); });
+        document.getElementById('blendMode').addEventListener('change', (e) => { config.blendingStrategy = e.target.value; syncMat(); });
+        document.getElementById('bgToggle').addEventListener('click', () => { config.bg = config.bg==='black'?'gray':'black'; scene.background = new THREE.Color(config.bg==='black'?0x000000:0x222222); });
+        document.getElementById('filterSelect').addEventListener('change', (e) => { config.filterMode = e.target.value; syncMat(); if(config.viewMode==='dual') updateEverything(true); });
+        document.getElementById('wireframeCheck').addEventListener('change', (e) => syncMat());
+        document.getElementById('backFaceCheck').addEventListener('change', (e) => { 
+            config.backFaces=e.target.checked; 
+            const s=config.backFaces?2:0; 
+            if(state.singularMesh) { state.singularMesh.material.side=s; state.singularMesh.material.needsUpdate=true; } 
+            state.layers.forEach(m=> { m.material.side=s; m.material.needsUpdate=true; }); 
+        });
+
+        const updateClip = (p, v) => p.constant = parseFloat(v);
+        ['X','Y','Z'].forEach(axis => {
+            const elIn = document.getElementById(`clip${axis}Input`);
+            const elSl = document.getElementById(`clip${axis}Slider`);
+            const plane = axis==='X'?clipPlaneX : axis==='Y'?clipPlaneY : clipPlaneZ;
+            elSl.addEventListener('input', (e) => { elIn.value = e.target.value; updateClip(plane, e.target.value); });
+            elIn.addEventListener('change', (e) => { elSl.value = e.target.value; updateClip(plane, e.target.value); });
+        });
+
+        document.getElementById('rangeMin').addEventListener('input', updateRangeSliders);
+        document.getElementById('rangeMax').addEventListener('input', updateRangeSliders);
+        function updateRangeSliders() { 
+            const min=parseInt(document.getElementById('rangeMin').value), max=parseInt(document.getElementById('rangeMax').value);
+            const rMin=Math.min(min,max), rMax=Math.max(min,max);
+            document.getElementById('rangeLabel').innerText = `${rMin} - ${rMax}`;
+            updateVisibility();
+        }
+        function updateVisibility() {
+            if(config.viewMode!=='layered') return;
+            const count = state.layers.length;
+            document.getElementById('rangeMin').max = count > 0 ? count : 128;
+            document.getElementById('rangeMax').max = count > 0 ? count : 128;
+            
+            const min=parseInt(document.getElementById('rangeMin').value), max=parseInt(document.getElementById('rangeMax').value);
+            const rMin=Math.min(min,max), rMax=Math.max(min,max);
+            state.layers.forEach((m,i)=>{
+                const vis = (i>=rMin && i<=rMax); m.visible=vis;
+                if(m.userData.contourLines) m.userData.contourLines.visible = vis && config.showContours;
+            });
+        }
+        function updateUI() {
+            document.getElementById('manualInput').value = state.strA; 
+            document.getElementById('binDisplay').innerText = state.strA;
+            document.getElementById('dispDec').innerText = state.seqIndex.toString();
+        }
+
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+        
+        // Initial setup
+        setMode('singular');
+        updatePhysicsTables();
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary Codex: Waveform Generator</title>
+    <style>
+        :root {
+            --bg-color: #0f111a;
+            --panel-color: #1a1d2d;
+            --text-color: #c0c5ce;
+            --accent-color: #00ff9d;
+            --wave-color: #00bfff;
+            --axis-color: #444;
+            --highlight: #ff0055;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h2 {
+            margin-top: 20px;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1000px;
+            background: var(--panel-color);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            margin-bottom: 40px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 500px;
+            background: #000;
+            border: 1px solid var(--axis-color);
+            border-radius: 4px;
+            cursor: crosshair;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: var(--accent-color);
+        }
+
+        input[type="text"], input[type="number"] {
+            background: var(--bg-color);
+            border: 1px solid var(--axis-color);
+            color: var(--text-color);
+            padding: 8px;
+            font-family: inherit;
+            border-radius: 4px;
+        }
+
+        input[type="range"] {
+            accent-color: var(--accent-color);
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: var(--bg-color);
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            padding: 10px 20px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            transition: all 0.2s;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background: var(--accent-color);
+            color: var(--bg-color);
+        }
+
+        button.active {
+            background: var(--accent-color);
+            color: var(--bg-color);
+        }
+
+        button.secondary {
+            border-color: var(--text-color);
+            color: var(--text-color);
+        }
+        
+        button.secondary:hover {
+            background: var(--text-color);
+            color: var(--bg-color);
+        }
+
+        #run-display {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            color: #888;
+            word-wrap: break-word;
+        }
+
+        .run-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            margin: 2px;
+            border-radius: 3px;
+            font-size: 0.8rem;
+        }
+        .run-1 { background: rgba(0, 191, 255, 0.2); color: #00bfff; border: 1px solid #00bfff; }
+        .run-0 { background: rgba(255, 0, 85, 0.2); color: #ff0055; border: 1px solid #ff0055; }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            margin-top: 5px;
+            color: #666;
+        }
+        
+        .mode-toggle {
+            display: flex;
+            gap: 5px;
+        }
+        .mode-toggle button {
+            flex: 1;
+            padding: 5px;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Binary Waveform Synthesizer</h2>
+
+    <div class="container">
+        <canvas id="waveCanvas"></canvas>
+        
+        <div class="stats">
+            <span id="time-readout">t: 0.00</span>
+            <span id="val-readout">val: 0.00</span>
+        </div>
+
+        <div id="run-display"></div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Binary String</label>
+                <input type="text" id="binaryInput" value="10100111" placeholder="Enter 0s and 1s">
+            </div>
+
+            <div class="control-group">
+                <label>Integer Value (Decimal)</label>
+                <div style="display: flex; gap: 5px;">
+                    <button class="secondary" onclick="increment(-1)">-</button>
+                    <input type="number" id="intInput" value="167" style="flex-grow: 1;">
+                    <button class="secondary" onclick="increment(1)">+</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>View Mode</label>
+                <div class="mode-toggle">
+                    <button id="btn-linear" onclick="setMode('linear')" class="active">Linear</button>
+                    <button id="btn-circular" onclick="setMode('circular')" class="secondary">Circular</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Base Amplitude (A₀): <span id="ampVal">1.0</span></label>
+                <input type="range" id="ampSlider" min="0.1" max="5.0" step="0.1" value="1.0">
+            </div>
+
+            <div class="control-group">
+                <label>Time per Bit (T₀): <span id="timeVal">1.0</span></label>
+                <input type="range" id="timeSlider" min="0.5" max="3.0" step="0.1" value="1.0">
+            </div>
+        </div>
+
+        <div class="button-row">
+            <button onclick="togglePlay()" id="playBtn">▶ Play Scan</button>
+            <button class="secondary" onclick="generateRandom()">Random</button>
+            <button class="secondary" onclick="clearInput()">Clear</button>
+        </div>
+    </div>
+
+<script>
+    // --- Configuration ---
+    const canvas = document.getElementById('waveCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let config = {
+        A0: 1.0,
+        T0: 1.0,
+        isPlaying: false,
+        scanTime: 0,
+        scanSpeed: 0.05,
+        viewMode: 'linear' // 'linear' or 'circular'
+    };
+
+    let displayRuns = []; // The runs for the single string (for display text)
+    let superSegments = []; // The segments for the 3x string
+    let unitDuration = 0;   // The duration of ONE copy of the string
+    let animationId;
+
+    // --- Core Logic ---
+
+    function parseRuns(binaryStr) {
+        if (!binaryStr) return [];
+        const runs = [];
+        let currentVal = binaryStr[0];
+        let currentLen = 0;
+
+        for (let char of binaryStr) {
+            if (char === currentVal) {
+                currentLen++;
+            } else {
+                runs.push({ value: parseInt(currentVal), length: currentLen });
+                currentVal = char;
+                currentLen = 1;
+            }
+        }
+        runs.push({ value: parseInt(currentVal), length: currentLen });
+        return runs;
+    }
+
+    function calculateWaveSegments(runs) {
+        let currentTime = 0;
+        return runs.map(run => {
+            const duration = run.length * config.T0;
+            const amplitude = config.A0 * run.length;
+            const sign = run.value === 1 ? 1 : -1;
+            
+            const segment = {
+                run: run,
+                start: currentTime,
+                end: currentTime + duration,
+                amplitude: amplitude,
+                sign: sign,
+                duration: duration
+            };
+            currentTime += duration;
+            return segment;
+        });
+    }
+
+    // Evaluates wave at time t (relative to the single unit duration)
+    // internally shifts to the middle third of the super-string
+    function evaluateWave(t) {
+        // Map t (0 -> unitDuration) to the middle section (unitDuration -> 2*unitDuration)
+        const globalT = t + unitDuration;
+        
+        const seg = superSegments.find(s => globalT >= s.start && globalT < s.end);
+        if (!seg) return 0;
+        
+        const phase = (globalT - seg.start) / seg.duration; 
+        return seg.sign * seg.amplitude * Math.sin(Math.PI * phase);
+    }
+
+    // --- Visualization ---
+
+    function draw() {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        
+        const width = canvas.width;
+        const height = canvas.height;
+
+        const input = document.getElementById('binaryInput').value;
+        
+        // 1. Analyze single string for text display
+        displayRuns = parseRuns(input);
+        
+        // 2. Analyze tripled string for continuous physics
+        const tripledInput = input + input + input;
+        const superRuns = parseRuns(tripledInput);
+        superSegments = calculateWaveSegments(superRuns);
+        
+        if (superSegments.length === 0) return;
+
+        // Calculate timing
+        const totalSuperDuration = superSegments[superSegments.length - 1].end;
+        unitDuration = totalSuperDuration / 3;
+        
+        ctx.clearRect(0, 0, width, height);
+
+        if (config.viewMode === 'linear') {
+            drawLinear(width, height);
+        } else {
+            drawCircular(width, height);
+        }
+
+        updateRunDisplay(displayRuns);
+    }
+
+    function drawLinear(width, height) {
+        const centerY = height / 2;
+        // Find max amplitude in the *middle section* specifically
+        const maxAmp = Math.max(...superSegments.map(s => s.amplitude));
+        
+        const scaleX = (width - 40) / unitDuration;
+        const scaleY = (height / 2 - 40) / (maxAmp || 1);
+
+        // Draw Axes
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, centerY);
+        ctx.lineTo(width, centerY);
+        ctx.stroke();
+
+        // Draw Segments Background (Clipped to View Window)
+        // We iterate all segments, but only draw the part that overlaps [unitDuration, 2*unitDuration]
+        superSegments.forEach(seg => {
+            // Intersection logic
+            const viewStart = unitDuration;
+            const viewEnd = unitDuration * 2;
+            
+            const segStart = seg.start;
+            const segEnd = seg.end;
+
+            // Check overlap
+            if (segEnd > viewStart && segStart < viewEnd) {
+                // Calculate visible portion relative to the view window (0 to unitDuration)
+                const drawStartT = Math.max(0, segStart - viewStart);
+                const drawEndT = Math.min(unitDuration, segEnd - viewStart);
+                
+                const x = 20 + drawStartT * scaleX;
+                const w = (drawEndT - drawStartT) * scaleX;
+                
+                ctx.fillStyle = seg.run.value === 1 ? 'rgba(0, 191, 255, 0.05)' : 'rgba(255, 0, 85, 0.05)';
+                ctx.fillRect(x, 10, w, height - 20);
+
+                // Draw delimiter if the actual segment start is visible
+                if (segStart >= viewStart) {
+                    ctx.strokeStyle = '#333';
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height);
+                    ctx.stroke();
+                }
+            }
+        });
+
+        // Draw Waveform
+        ctx.beginPath();
+        ctx.strokeStyle = '#00bfff';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        let first = true;
+        const step = unitDuration / 500; 
+
+        for (let t = 0; t <= unitDuration; t += step) {
+            const val = evaluateWave(t);
+            const x = 20 + t * scaleX;
+            const y = centerY - (val * scaleY);
+            
+            if (first) { ctx.moveTo(x, y); first = false; }
+            else { ctx.lineTo(x, y); }
+        }
+        ctx.stroke();
+
+        // Playhead
+        if (config.isPlaying || config.scanTime > 0) {
+            const scanVal = evaluateWave(config.scanTime);
+            const sx = 20 + config.scanTime * scaleX;
+            const sy = centerY - (scanVal * scaleY);
+            drawPlayhead(sx, sy, scanVal, true);
+        }
+    }
+
+    function drawCircular(width, height) {
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const minDim = Math.min(width, height);
+        
+        const baseRadius = minDim * 0.25; 
+        const maxAmp = Math.max(...superSegments.map(s => s.amplitude));
+        const availableSpace = (minDim / 2) - baseRadius - 20; 
+        const scaleY = availableSpace / (maxAmp || 1);
+
+        // Draw Base Circle
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, baseRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Draw Background Sectors (Clipped)
+        superSegments.forEach(seg => {
+            const viewStart = unitDuration;
+            const viewEnd = unitDuration * 2;
+            
+            if (seg.end > viewStart && seg.start < viewEnd) {
+                const effectiveStart = Math.max(viewStart, seg.start);
+                const effectiveEnd = Math.min(viewEnd, seg.end);
+                
+                // Map to 0..unitDuration
+                const tStart = effectiveStart - viewStart;
+                const tEnd = effectiveEnd - viewStart;
+
+                const startAngle = (tStart / unitDuration) * Math.PI * 2 - Math.PI/2;
+                const endAngle = (tEnd / unitDuration) * Math.PI * 2 - Math.PI/2;
+
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, minDim/1.8, startAngle, endAngle);
+                ctx.fillStyle = seg.run.value === 1 ? 'rgba(0, 191, 255, 0.05)' : 'rgba(255, 0, 85, 0.05)';
+                ctx.fill();
+
+                // Draw delimiter if segment effectively starts here
+                if (seg.start >= viewStart) {
+                    ctx.strokeStyle = '#333';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, centerY);
+                    const rX = centerX + Math.cos(startAngle) * (minDim/2);
+                    const rY = centerY + Math.sin(startAngle) * (minDim/2);
+                    ctx.lineTo(rX, rY);
+                    ctx.stroke();
+                }
+            }
+        });
+
+        // Draw Waveform
+        ctx.beginPath();
+        ctx.strokeStyle = '#00bfff';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        let first = true;
+        const step = unitDuration / 720; 
+
+        for (let t = 0; t <= unitDuration; t += step) {
+            const val = evaluateWave(t);
+            const angle = (t / unitDuration) * Math.PI * 2 - Math.PI/2;
+            const r = baseRadius + (val * scaleY);
+            
+            const x = centerX + Math.cos(angle) * r;
+            const y = centerY + Math.sin(angle) * r;
+            
+            if (first) { ctx.moveTo(x, y); first = false; }
+            else { ctx.lineTo(x, y); }
+        }
+        
+        // Close the loop explicitly to ensure perfect seal
+        const val0 = evaluateWave(0);
+        const angle0 = -Math.PI/2;
+        const r0 = baseRadius + (val0 * scaleY);
+        ctx.lineTo(centerX + Math.cos(angle0) * r0, centerY + Math.sin(angle0) * r0);
+        
+        ctx.stroke();
+
+        // Playhead
+        if (config.isPlaying || config.scanTime > 0) {
+            const scanVal = evaluateWave(config.scanTime);
+            const angle = (config.scanTime / unitDuration) * Math.PI * 2 - Math.PI/2;
+            const r = baseRadius + (scanVal * scaleY);
+            
+            const sx = centerX + Math.cos(angle) * r;
+            const sy = centerY + Math.sin(angle) * r;
+            
+            drawPlayhead(sx, sy, scanVal, false, centerX, centerY);
+        }
+    }
+
+    function drawPlayhead(x, y, val, isLinear, cx, cy) {
+        // Ball
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Line
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        
+        if (isLinear) {
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, canvas.height);
+        } else {
+            ctx.moveTo(cx, cy);
+            const dx = x - cx;
+            const dy = y - cy;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > 0) {
+                 ctx.lineTo(cx + (dx/dist)*canvas.width, cy + (dy/dist)*canvas.width);
+            }
+        }
+        
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        document.getElementById('time-readout').innerText = `t: ${config.scanTime.toFixed(2)}`;
+        document.getElementById('val-readout').innerText = `val: ${val.toFixed(2)}`;
+    }
+
+    function updateRunDisplay(runs) {
+        const div = document.getElementById('run-display');
+        div.innerHTML = 'Runs (Input): ' + runs.map(r => 
+            `<span class="run-tag run-${r.value}">${r.value}×${r.length}</span>`
+        ).join(' ');
+    }
+
+    // --- Interaction ---
+
+    function setMode(mode) {
+        config.viewMode = mode;
+        document.getElementById('btn-linear').className = mode === 'linear' ? 'active' : 'secondary';
+        document.getElementById('btn-circular').className = mode === 'circular' ? 'active' : 'secondary';
+        draw();
+    }
+
+    function animate() {
+        if (config.isPlaying) {
+            config.scanTime += config.scanSpeed;
+            if (config.scanTime > unitDuration) {
+                config.scanTime = 0; 
+            }
+            draw();
+            animationId = requestAnimationFrame(animate);
+        }
+    }
+
+    function togglePlay() {
+        config.isPlaying = !config.isPlaying;
+        const btn = document.getElementById('playBtn');
+        btn.innerText = config.isPlaying ? '❚❚ Pause' : '▶ Play Scan';
+        if (config.isPlaying) animate();
+        else cancelAnimationFrame(animationId);
+    }
+
+    function increment(amount) {
+        const intInput = document.getElementById('intInput');
+        let currentVal = BigInt(intInput.value);
+        currentVal += BigInt(amount);
+        if (currentVal < 0n) currentVal = 0n;
+        
+        intInput.value = currentVal.toString();
+        const bin = currentVal.toString(2);
+        document.getElementById('binaryInput').value = bin;
+        
+        config.scanTime = 0;
+        draw();
+    }
+
+    function generateRandom() {
+        let s = "";
+        const len = Math.floor(Math.random() * 10) + 5;
+        for(let i=0; i<len; i++) s += Math.random() > 0.5 ? "1" : "0";
+        document.getElementById('binaryInput').value = s;
+        document.getElementById('intInput').value = parseInt(s, 2);
+        config.scanTime = 0;
+        draw();
+    }
+    
+    function clearInput() {
+        document.getElementById('binaryInput').value = "";
+        document.getElementById('intInput').value = "0";
+        draw();
+    }
+
+    // --- Event Listeners ---
+
+    document.getElementById('binaryInput').addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/[^01]/g, '');
+        try {
+            document.getElementById('intInput').value = BigInt("0b" + (e.target.value || "0")).toString();
+        } catch(e) {}
+        config.scanTime = 0;
+        draw();
+    });
+
+    document.getElementById('intInput').addEventListener('input', (e) => {
+        try {
+            const val = BigInt(e.target.value);
+            document.getElementById('binaryInput').value = val.toString(2);
+            config.scanTime = 0;
+            draw();
+        } catch(err) {}
+    });
+
+    document.getElementById('ampSlider').addEventListener('input', (e) => {
+        config.A0 = parseFloat(e.target.value);
+        document.getElementById('ampVal').innerText = config.A0.toFixed(1);
+        draw();
+    });
+
+    document.getElementById('timeSlider').addEventListener('input', (e) => {
+        config.T0 = parseFloat(e.target.value);
+        document.getElementById('timeVal').innerText = config.T0.toFixed(1);
+        draw();
+    });
+
+    // Init
+    window.addEventListener('resize', draw);
+    draw();
+
+</script>
+</body>
+</html>
