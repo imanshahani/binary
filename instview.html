@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Executable Matrix Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- Base and Layout --- */
+        :root {
+            --bg-color: #f4f7fa;
+            --panel-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --accent-color: #4299e1;
+            --accent-color-hover: #3182ce;
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: row;
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.07), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            overflow: hidden;
+            width: 100%;
+            max-width: 1600px;
+            margin: 20px;
+            height: calc(100vh - 40px);
+        }
+
+        /* --- Controls Panel --- */
+        .controls {
+            width: 360px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .controls-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .controls-header h1 {
+            font-size: 1.35rem;
+            margin: 0 0 8px 0;
+            font-weight: 700;
+        }
+
+        .controls-header p {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .controls-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* --- Display Panel --- */
+        .display {
+            flex-grow: 1;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        .display-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            flex-shrink: 0;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .display-header h2 {
+            font-size: 1.25rem;
+            margin: 0;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .canvas-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background-color: #edf2f7;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        #fractalCanvas {
+            background-color: #333333;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        /* --- UI Components --- */
+        label, h3 {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-size: 0.875rem;
+            display: block;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px dashed var(--border-color);
+            border-radius: 6px;
+            background-color: #f9fafb;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+
+        select {
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: #fff;
+            font-family: var(--font-family);
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            user-select: none;
+            margin-bottom: 6px;
+            flex-grow: 1;
+        }
+        .checkbox-container input[type="checkbox"] { display: none; }
+        .checkmark {
+            height: 18px;
+            width: 18px;
+            background-color: #fff;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            margin-right: 10px;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .checkbox-container:hover .checkmark { border-color: var(--accent-color); }
+        .checkbox-container input[type="checkbox"]:checked ~ .checkmark {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+            left: 5px;
+            top: 1px;
+            width: 4px;
+            height: 9px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+        .checkbox-container input[type="checkbox"]:checked ~ .checkmark:after { display: block; }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 8px;
+            margin-right: 12px;
+            background: none;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch {
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+
+        .legend-box {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: #f9fafb;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .channel-row {
+            display: flex;
+            align-items: center;
+        }
+
+        .info-section p, .status-section p {
+            margin: 0;
+            padding: 10px 14px;
+            background-color: #f4f7fa;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            word-break: break-all;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            background-color: #fff;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        .action-btn:active { transform: scale(0.98); }
+        .action-btn:hover:not(.primary) { background-color: #f9fafb; }
+        
+        .action-btn.primary {
+            background-color: var(--accent-color);
+            color: #fff;
+            border-color: var(--accent-color);
+        }
+        .action-btn.primary:hover {
+            background-color: var(--accent-color-hover);
+        }
+
+        /* --- Zoom Controls --- */
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .zoom-controls span {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            min-width: 130px;
+        }
+        .zoom-btn, .zoom-presets button {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            background-color: #fff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        .zoom-btn:hover, .zoom-presets button:hover { background-color: #f9fafb; }
+        .zoom-presets { display: flex; gap: 4px; margin-left: 8px; }
+        .export-group { display: flex; gap: 8px; align-items: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="controls-header">
+                <h1>Universal Matrix</h1>
+                <p>Biological & Artificial Executables</p>
+            </div>
+
+            <div class="controls-body">
+                <div class="input-group">
+                    <label for="parseModeSelect">Parsing Engine</label>
+                    <select id="parseModeSelect">
+                        <option value="auto">Auto-Detect via Extension</option>
+                        <option value="dna">Biological Sequence (A,C,G,T)</option>
+                        <option value="binary">Artificial Binary (Raw Bytes)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="dataFile">Upload File</label>
+                    <input type="file" id="dataFile">
+                </div>
+
+                <div class="legend-box">
+                    <h3>Channel Isolation & Colors</h3>
+                    
+                    <div class="channel-row">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="toggleA" class="channel-toggle" checked>
+                            <span class="checkmark"></span> Ch 0 (A / 00)
+                        </label>
+                        <input type="color" id="colorPickerA" class="color-picker" value="#000000">
+                    </div>
+
+                    <div class="channel-row">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="toggleC" class="channel-toggle" checked>
+                            <span class="checkmark"></span> Ch 1 (C / 01)
+                        </label>
+                        <input type="color" id="colorPickerC" class="color-picker" value="#ff0000">
+                    </div>
+
+                    <div class="channel-row">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="toggleG" class="channel-toggle" checked>
+                            <span class="checkmark"></span> Ch 2 (G / 10)
+                        </label>
+                        <input type="color" id="colorPickerG" class="color-picker" value="#00ff00">
+                    </div>
+
+                    <div class="channel-row">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="toggleT" class="channel-toggle" checked>
+                            <span class="checkmark"></span> Ch 3 (T / 11)
+                        </label>
+                        <input type="color" id="colorPickerT" class="color-picker" value="#0000ff">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label class="checkbox-container" style="margin-top: 4px;">
+                        <input type="checkbox" id="filterToggle" checked>
+                        <span class="checkmark"></span> Anti-Aliasing (Box Filter)
+                    </label>
+                </div>
+
+                 <div class="info-section">
+                    <p id="sequenceLengthLabel">Sequence Length: 0 units</p>
+                    <p id="matrixSizeLabel">Virtual Matrix: 0 x 0</p>
+                </div>
+
+                <div class="status-section">
+                    <p id="statusLabel">Status: Waiting for file...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="display">
+             <div class="display-header">
+                <h2 id="imageTitleLabel">Viewport View</h2>
+                <div class="zoom-controls">
+                    <span id="zoomLabel">Zoom: 1x (100%)</span>
+                    <button id="zoomOutBtn" class="zoom-btn">Zoom Out</button>
+                    <button id="zoomInBtn" class="zoom-btn">Zoom In</button>
+                    <div class="zoom-presets">
+                        <button id="zoom100Btn">1:1</button>
+                        <button id="zoomFitBtn">Fit</button>
+                    </div>
+                </div>
+                <div class="export-group">
+                    <select id="exportScaleSelect">
+                        <optgroup label="Viewport">
+                            <option value="viewport">Viewport View</option>
+                        </optgroup>
+                        <optgroup label="Fractional Scale (Small Files)">
+                            <option value="scale_0">Full Scale (1:1)</option>
+                            <option value="scale_-1">Half Scale (1:2)</option>
+                            <option value="scale_-2">Quarter Scale (1:4)</option>
+                            <option value="scale_-3">1/8 Scale (1:8)</option>
+                            <option value="scale_-4">1/16 Scale (1:16)</option>
+                            <option value="scale_-5">1/32 Scale (1:32)</option>
+                        </optgroup>
+                        <optgroup label="Fixed Bounds (Large Files)">
+                            <option value="fixed_1024">Fixed 1024x1024 (Fast)</option>
+                            <option value="fixed_2048">Fixed 2048x2048 (Standard)</option>
+                            <option value="fixed_4096">Fixed 4096x4096 (High Res)</option>
+                            <option value="fixed_8192">Fixed 8192x8192 (Max Safe)</option>
+                        </optgroup>
+                    </select>
+                    <button id="exportImageButton" class="action-btn primary">Export</button>
+                </div>
+            </div>
+            <div class="canvas-container" id="canvasContainer">
+                <canvas id="fractalCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const App = {
+            sequenceInts: new Uint8Array(0),
+            sequenceLength: 0,
+            
+            zoomLevel: 0,
+            panOffsetX: 0.0,
+            panOffsetY: 0.0,
+            isPanning: false,
+            panStartX: 0,
+            panStartY: 0,
+            panStartOffsetX: 0,
+            panStartOffsetY: 0,
+            
+            MAX_ZOOM_LEVEL: 6,
+            MIN_ZOOM_LEVEL: -12,
+            
+            colorLUT: new Float32Array(16 * 3),
+
+            PURE_COLORS: [
+                [0, 0, 0],       
+                [255, 0, 0],     
+                [0, 255, 0],     
+                [0, 0, 255]      
+            ],
+
+            init() {
+                this.canvas = document.getElementById('fractalCanvas');
+                this.ctx = this.canvas.getContext('2d', { alpha: false });
+                this.container = document.getElementById('canvasContainer');
+                
+                this.syncColorsFromUI();
+                this.precomputeLUT(0);
+                this.bindEvents();
+                this.onResize();
+            },
+
+            hexToRgb(hex) {
+                const bigint = parseInt(hex.substring(1), 16);
+                const r = (bigint >> 16) & 255;
+                const g = (bigint >> 8) & 255;
+                const b = bigint & 255;
+                return [r, g, b];
+            },
+
+            syncColorsFromUI() {
+                this.PURE_COLORS[0] = this.hexToRgb(document.getElementById('colorPickerA').value);
+                this.PURE_COLORS[1] = this.hexToRgb(document.getElementById('colorPickerC').value);
+                this.PURE_COLORS[2] = this.hexToRgb(document.getElementById('colorPickerG').value);
+                this.PURE_COLORS[3] = this.hexToRgb(document.getElementById('colorPickerT').value);
+            },
+
+            precomputeLUT(firstVal) {
+                const showA = document.getElementById('toggleA').checked;
+                const showC = document.getElementById('toggleC').checked;
+                const showG = document.getElementById('toggleG').checked;
+                const showT = document.getElementById('toggleT').checked;
+
+                const cA = this.PURE_COLORS[0];
+                const cC = this.PURE_COLORS[1];
+                const cG = this.PURE_COLORS[2];
+                const cT = this.PURE_COLORS[3];
+
+                for (let valR = 0; valR < 4; valR++) {
+                    for (let valC = 0; valC < 4; valC++) {
+                        
+                        const maskA = ((valC === 0) ^ (valR === 0) ^ (firstVal === 0)) ? (showA ? 1 : 0) : 0;
+                        const maskC = ((valC === 1) ^ (valR === 1) ^ (firstVal === 1)) ? (showC ? 1 : 0) : 0;
+                        const maskG = ((valC === 2) ^ (valR === 2) ^ (firstVal === 2)) ? (showG ? 1 : 0) : 0;
+                        const maskT = ((valC === 3) ^ (valR === 3) ^ (firstVal === 3)) ? (showT ? 1 : 0) : 0;
+
+                        const activeCount = maskA + maskC + maskG + maskT;
+                        const idx = (valR * 4 + valC) * 3;
+
+                        if (activeCount === 0) {
+                            this.colorLUT[idx + 0] = 237;
+                            this.colorLUT[idx + 1] = 242;
+                            this.colorLUT[idx + 2] = 247;
+                        } else {
+                            let rSum = (maskA * cA[0]) + (maskC * cC[0]) + (maskG * cG[0]) + (maskT * cT[0]);
+                            let gSum = (maskA * cA[1]) + (maskC * cC[1]) + (maskG * cG[1]) + (maskT * cT[1]);
+                            let bSum = (maskA * cA[2]) + (maskC * cC[2]) + (maskG * cG[2]) + (maskT * cT[2]);
+
+                            this.colorLUT[idx + 0] = rSum / activeCount;
+                            this.colorLUT[idx + 1] = gSum / activeCount;
+                            this.colorLUT[idx + 2] = bSum / activeCount;
+                        }
+                    }
+                }
+            },
+
+            bindEvents() {
+                document.getElementById('dataFile').addEventListener('change', (e) => this.handleFileUpload(e));
+                document.getElementById('filterToggle').addEventListener('change', () => this.renderViewport());
+                
+                document.querySelectorAll('.channel-toggle').forEach(checkbox => {
+                    checkbox.addEventListener('change', () => this.updateColorsAndRender());
+                });
+
+                document.querySelectorAll('.color-picker').forEach(picker => {
+                    picker.addEventListener('input', () => this.updateColorsAndRender());
+                });
+                
+                this.canvas.addEventListener('mousedown', (e) => this.onPanStart(e));
+                this.canvas.addEventListener('mousemove', (e) => this.onPanMove(e));
+                this.canvas.addEventListener('mouseup', () => this.onPanEnd());
+                this.canvas.addEventListener('mouseleave', () => this.onPanEnd());
+                
+                this.canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const rect = this.canvas.getBoundingClientRect();
+                    const cursorX = e.clientX - rect.left;
+                    const cursorY = e.clientY - rect.top;
+                    const levelChange = e.deltaY < 0 ? 1 : -1;
+                    this.setZoomLevel(this.zoomLevel + levelChange, cursorX, cursorY);
+                });
+
+                document.getElementById('zoomInBtn').addEventListener('click', () => this.setZoomLevel(this.zoomLevel + 1));
+                document.getElementById('zoomOutBtn').addEventListener('click', () => this.setZoomLevel(this.zoomLevel - 1));
+                document.getElementById('zoom100Btn').addEventListener('click', () => this.setZoomLevel(0));
+                document.getElementById('zoomFitBtn').addEventListener('click', () => this.zoomFit());
+                document.getElementById('exportImageButton').addEventListener('click', () => this.exportImage());
+
+                new ResizeObserver(() => this.onResize()).observe(this.container);
+            },
+
+            updateColorsAndRender() {
+                this.syncColorsFromUI();
+                const firstVal = this.sequenceLength > 0 ? this.sequenceInts[0] : 0;
+                this.precomputeLUT(firstVal);
+                this.renderViewport();
+            },
+
+            setStatus(msg) {
+                document.getElementById('statusLabel').textContent = `Status: ${msg}`;
+            },
+
+            // --- Async Data Parsers ---
+            handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const parseMode = document.getElementById('parseModeSelect').value;
+                let isBinaryMode = false;
+
+                if (parseMode === 'auto') {
+                    const name = file.name.toLowerCase();
+                    if (name.endsWith('.txt') || name.endsWith('.fasta') || name.endsWith('.fna')) {
+                        isBinaryMode = false;
+                    } else {
+                        isBinaryMode = true; 
+                    }
+                } else {
+                    isBinaryMode = (parseMode === 'binary');
+                }
+
+                this.setStatus(`Loading ${isBinaryMode ? "Artificial Binary" : "Biological DNA"}...`);
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    if (isBinaryMode) {
+                        this.parseBinaryData(e.target.result);
+                    } else {
+                        this.parseDNAData(e.target.result);
+                    }
+                };
+
+                if (isBinaryMode) {
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    reader.readAsText(file);
+                }
+            },
+
+            parseBinaryData(arrayBuffer) {
+                const bytes = new Uint8Array(arrayBuffer);
+                const numBytes = bytes.length;
+                
+                this.sequenceLength = numBytes * 4;
+                this.sequenceInts = new Uint8Array(this.sequenceLength);
+                
+                let i = 0;
+                let idx = 0;
+                const CHUNK_SIZE = 500000;
+
+                const processChunk = () => {
+                    const end = Math.min(i + CHUNK_SIZE, numBytes);
+                    while (i < end) {
+                        const b = bytes[i++];
+                        this.sequenceInts[idx++] = (b >> 6) & 3; 
+                        this.sequenceInts[idx++] = (b >> 4) & 3; 
+                        this.sequenceInts[idx++] = (b >> 2) & 3; 
+                        this.sequenceInts[idx++] = b & 3;        
+                    }
+                    
+                    const progress = Math.round((i / numBytes) * 100);
+                    this.setStatus(`Parsing binary sequence... ${progress}%`);
+
+                    if (i < numBytes) {
+                        requestAnimationFrame(processChunk);
+                    } else {
+                        this.finalizeParsing();
+                    }
+                };
+                
+                processChunk();
+            },
+
+            parseDNAData(text) {
+                const cleanText = text.replace(/[^ACGTacgt]/g, '').toUpperCase();
+                this.sequenceLength = cleanText.length;
+                this.sequenceInts = new Uint8Array(this.sequenceLength);
+                
+                let i = 0;
+                const CHUNK_SIZE = 2000000;
+
+                const processChunk = () => {
+                    const end = Math.min(i + CHUNK_SIZE, this.sequenceLength);
+                    while (i < end) {
+                        const char = cleanText[i];
+                        if (char === 'A') this.sequenceInts[i] = 0;
+                        else if (char === 'C') this.sequenceInts[i] = 1;
+                        else if (char === 'G') this.sequenceInts[i] = 2;
+                        else if (char === 'T') this.sequenceInts[i] = 3;
+                        i++;
+                    }
+                    
+                    const progress = Math.round((i / this.sequenceLength) * 100);
+                    this.setStatus(`Mapping nucleotides... ${progress}%`);
+
+                    if (i < this.sequenceLength) {
+                        requestAnimationFrame(processChunk);
+                    } else {
+                        this.finalizeParsing();
+                    }
+                };
+
+                processChunk();
+            },
+
+            finalizeParsing() {
+                document.getElementById('sequenceLengthLabel').textContent = `Sequence Length: ${this.sequenceLength.toLocaleString()} units`;
+                document.getElementById('matrixSizeLabel').textContent = `Virtual Matrix: ${this.sequenceLength.toLocaleString()} x ${this.sequenceLength.toLocaleString()}`;
+                
+                if (this.sequenceLength > 0) {
+                    this.precomputeLUT(this.sequenceInts[0]);
+                }
+
+                this.setStatus("Ready.");
+                this.zoomFit();
+            },
+
+            // --- Viewport Controls ---
+            setZoomLevel(newLevel, pivotX, pivotY) {
+                newLevel = Math.max(this.MIN_ZOOM_LEVEL, Math.min(newLevel, this.MAX_ZOOM_LEVEL));
+                if (newLevel === this.zoomLevel) return;
+
+                const oldScale = Math.pow(2, this.zoomLevel);
+                const newScale = Math.pow(2, newLevel);
+                
+                const canvasW = this.canvas.width;
+                const canvasH = this.canvas.height;
+                
+                pivotX = pivotX !== undefined ? pivotX : canvasW / 2;
+                pivotY = pivotY !== undefined ? pivotY : canvasH / 2;
+
+                const centerMatrixX = this.panOffsetX + pivotX / oldScale;
+                const centerMatrixY = this.panOffsetY + pivotY / oldScale;
+
+                this.zoomLevel = newLevel;
+                this.panOffsetX = centerMatrixX - pivotX / newScale;
+                this.panOffsetY = centerMatrixY - pivotY / newScale;
+
+                this.updateUI();
+                this.renderViewport();
+            },
+
+            zoomFit() {
+                if (this.sequenceLength === 0) return;
+                const canvasW = this.canvas.width;
+                const canvasH = this.canvas.height;
+                
+                const scaleX = canvasW / this.sequenceLength;
+                const scaleY = canvasH / this.sequenceLength;
+                const minScale = Math.min(scaleX, scaleY);
+                
+                const fitLevel = Math.floor(Math.log2(minScale));
+                
+                this.zoomLevel = fitLevel;
+                const scale = Math.pow(2, fitLevel);
+                
+                this.panOffsetX = (this.sequenceLength - canvasW / scale) / 2;
+                this.panOffsetY = (this.sequenceLength - canvasH / scale) / 2;
+                
+                this.updateUI();
+                this.renderViewport();
+            },
+
+            onPanStart(e) {
+                this.isPanning = true;
+                this.panStartX = e.clientX;
+                this.panStartY = e.clientY;
+                this.panStartOffsetX = this.panOffsetX;
+                this.panStartOffsetY = this.panOffsetY;
+                this.canvas.style.cursor = 'grabbing';
+            },
+
+            onPanMove(e) {
+                if (!this.isPanning) return;
+                const dx = e.clientX - this.panStartX;
+                const dy = e.clientY - this.panStartY;
+                const scale = Math.pow(2, this.zoomLevel);
+                
+                this.panOffsetX = this.panStartOffsetX - (dx / scale);
+                this.panOffsetY = this.panStartOffsetY - (dy / scale);
+                
+                this.renderViewport();
+            },
+
+            onPanEnd() {
+                this.isPanning = false;
+                this.canvas.style.cursor = 'crosshair';
+            },
+
+            onResize() {
+                const rect = this.container.getBoundingClientRect();
+                this.canvas.width = Math.floor(rect.width);
+                this.canvas.height = Math.floor(rect.height);
+                this.renderViewport();
+            },
+
+            updateUI() {
+                const scale = Math.pow(2, this.zoomLevel);
+                let label = "";
+                if (this.zoomLevel >= 0) {
+                    label = `Zoom: ${scale}x (${scale * 100}%)`;
+                } else {
+                    label = `Zoom: 1/${1/scale}x (${(scale * 100).toFixed(2)}%)`;
+                }
+                document.getElementById('zoomLabel').textContent = label;
+            },
+
+            renderViewport() {
+                const cw = this.canvas.width;
+                const ch = this.canvas.height;
+                const len = this.sequenceLength;
+                
+                if (len === 0 || cw === 0 || ch === 0) {
+                    this.ctx.fillStyle = "#edf2f7";
+                    this.ctx.fillRect(0, 0, cw, ch);
+                    return;
+                }
+
+                const imgData = this.ctx.createImageData(cw, ch);
+                const data = imgData.data;
+
+                const scale = Math.pow(2, this.zoomLevel);
+                const isZoomedOut = this.zoomLevel < 0;
+                const filterEnabled = document.getElementById('filterToggle').checked;
+                
+                const K = (isZoomedOut && filterEnabled) ? (1.0 / scale) : 1.0;
+                const step = Math.max(1, Math.floor(K / 6)); 
+                
+                const offsetX = this.panOffsetX;
+                const offsetY = this.panOffsetY;
+                const seq = this.sequenceInts;
+                const lut = this.colorLUT;
+
+                let i = 0;
+                for (let y = 0; y < ch; y++) {
+                    const rStart = Math.floor(offsetY + y / scale);
+                    const rEnd = filterEnabled && isZoomedOut ? Math.min(Math.floor(offsetY + (y + 1) / scale), len) : rStart + 1;
+
+                    for (let x = 0; x < cw; x++) {
+                        const cStart = Math.floor(offsetX + x / scale);
+                        const cEnd = filterEnabled && isZoomedOut ? Math.min(Math.floor(offsetX + (x + 1) / scale), len) : cStart + 1;
+                        
+                        if (rStart >= 0 && rStart < len && cStart >= 0 && cStart < len) {
+                            
+                            if (filterEnabled && isZoomedOut) {
+                                let sumR = 0, sumG = 0, sumB = 0, count = 0;
+                                
+                                for (let r = rStart; r < rEnd; r += step) {
+                                    const rowOffset = seq[r] * 4;
+                                    for (let c = cStart; c < cEnd; c += step) {
+                                        const idx = (rowOffset + seq[c]) * 3;
+                                        sumR += lut[idx];
+                                        sumG += lut[idx + 1];
+                                        sumB += lut[idx + 2];
+                                        count++;
+                                    }
+                                }
+                                
+                                data[i++] = sumR / count;
+                                data[i++] = sumG / count;
+                                data[i++] = sumB / count;
+                                data[i++] = 255;
+                            } 
+                            else {
+                                const idx = (seq[rStart] * 4 + seq[cStart]) * 3;
+                                data[i++] = lut[idx];
+                                data[i++] = lut[idx + 1];
+                                data[i++] = lut[idx + 2];
+                                data[i++] = 255;
+                            }
+
+                        } else {
+                            data[i++] = 237; data[i++] = 242; data[i++] = 247; data[i++] = 255;
+                        }
+                    }
+                }
+
+                this.ctx.putImageData(imgData, 0, 0);
+            },
+
+            // --- The Combined Export Engine ---
+            exportImage() {
+                if (this.sequenceLength === 0) return;
+
+                const exportVal = document.getElementById('exportScaleSelect').value;
+                if (exportVal === "viewport") {
+                    this.triggerDownload(this.canvas, "matrix_viewport.png");
+                    return;
+                }
+
+                let exportSize;
+                let scale;
+                const isFixed = exportVal.startsWith("fixed_");
+                const isScale = exportVal.startsWith("scale_");
+
+                if (isFixed) {
+                    exportSize = parseInt(exportVal.split("_")[1]);
+                    // Dynamically calculate the precise scale to fit the entire matrix into the requested bounds
+                    scale = exportSize / this.sequenceLength;
+                } else if (isScale) {
+                    const exportLevel = parseInt(exportVal.split("_")[1]);
+                    scale = Math.pow(2, exportLevel);
+                    exportSize = Math.floor(this.sequenceLength * scale);
+                }
+
+                if (exportSize > 16384) {
+                    const proceed = confirm(`Warning: You are attempting to render an ${exportSize}x${exportSize} image. This requires immense memory overhead and may crash or freeze your browser tab. Do you want to try anyway?`);
+                    if (!proceed) return;
+                } else if (exportSize > 8192) {
+                    const proceed = confirm(`Warning: You are attempting to render an ${exportSize}x${exportSize} image. This may cause significant slowdowns depending on your device's memory. Proceed?`);
+                    if (!proceed) return;
+                }
+
+                this.setStatus(`Generating ${exportSize}x${exportSize} image... (This may take a moment)`);
+                
+                setTimeout(() => {
+                    try {
+                        const offCanvas = document.createElement('canvas');
+                        offCanvas.width = exportSize;
+                        offCanvas.height = exportSize;
+                        const offCtx = offCanvas.getContext('2d', { alpha: false });
+                        
+                        const imgData = offCtx.createImageData(exportSize, exportSize);
+                        const data = imgData.data;
+                        const seq = this.sequenceInts;
+                        const lut = this.colorLUT;
+                        
+                        const filterEnabled = document.getElementById('filterToggle').checked;
+                        const isZoomedOut = scale < 1.0;
+                        const invScale = 1.0 / scale;
+                        
+                        // Adaptive stepping prevents exponential loops while ensuring exact footprint coverage
+                        const K = (isZoomedOut && filterEnabled) ? invScale : 1.0;
+                        const step = Math.max(1, Math.floor(K / 5)); 
+
+                        let i = 0;
+
+                        for (let y = 0; y < exportSize; y++) {
+                            const rStart = Math.floor(y * invScale);
+                            const rEnd = filterEnabled && isZoomedOut ? Math.min(Math.floor((y + 1) * invScale), this.sequenceLength) : rStart + 1;
+
+                            for (let x = 0; x < exportSize; x++) {
+                                const cStart = Math.floor(x * invScale);
+                                const cEnd = filterEnabled && isZoomedOut ? Math.min(Math.floor((x + 1) * invScale), this.sequenceLength) : cStart + 1;
+
+                                if (filterEnabled && isZoomedOut) {
+                                    let sumR = 0, sumG = 0, sumB = 0, count = 0;
+                                    for (let r = rStart; r < rEnd; r += step) {
+                                        const rowOffset = seq[r] * 4;
+                                        for (let c = cStart; c < cEnd; c += step) {
+                                            const idx = (rowOffset + seq[c]) * 3;
+                                            sumR += lut[idx];
+                                            sumG += lut[idx + 1];
+                                            sumB += lut[idx + 2];
+                                            count++;
+                                        }
+                                    }
+                                    data[i++] = sumR / count;
+                                    data[i++] = sumG / count;
+                                    data[i++] = sumB / count;
+                                    data[i++] = 255;
+                                } else {
+                                    const idx = (seq[rStart] * 4 + seq[cStart]) * 3;
+                                    data[i++] = lut[idx];
+                                    data[i++] = lut[idx + 1];
+                                    data[i++] = lut[idx + 2];
+                                    data[i++] = 255;
+                                }
+                            }
+                        }
+
+                        offCtx.putImageData(imgData, 0, 0);
+                        
+                        this.setStatus("Saving image file...");
+                        const filename = `matrix_export_${exportSize}x${exportSize}.png`;
+                        this.triggerDownload(offCanvas, filename);
+                        
+                    } catch (err) {
+                        this.setStatus("Export failed. Memory limit reached.");
+                        console.error("Export Memory Error:", err);
+                    }
+                }, 50);
+            },
+
+            triggerDownload(canvasEl, filename) {
+                canvasEl.toBlob((blob) => {
+                    if (!blob) {
+                        this.setStatus("Blob creation failed. Canvas limit reached.");
+                        return;
+                    }
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    this.setStatus("Export complete.");
+                }, 'image/png');
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => App.init());
+    </script>
+</body>
+</html>
