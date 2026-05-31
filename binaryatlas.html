@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Infinite Binary Atlas: Cinematic Explorer</title>
+    <style>
+        :root {
+            --bg: #1a1a1a; 
+            --text: #e0e0e0;
+            --primary-ui: #00ff66; --complement-ui: #00ccff; --family-ui: #ff00ff;
+        }
+
+        body {
+            margin: 0; overflow: hidden; background-color: var(--bg); color: var(--text);
+            font-family: 'Segoe UI', monospace; user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas { display: block; touch-action: none; cursor: crosshair; }
+
+        /* Floating HUD UI */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; padding: 20px; box-sizing: border-box;
+            transition: opacity 0.3s ease;
+        }
+        #ui-layer.collapsed {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        #ui-layer.collapsed .hud-panel {
+            pointer-events: none; /* Prevents invisible buttons from being clicked */
+        }
+
+        .hud-panel {
+            pointer-events: auto;
+            background: rgba(15, 15, 15, 0.85);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        }
+
+        /* New Bottom Bar Container */
+        #bottom-bar {
+            position: absolute; bottom: 20px; left: 20px; right: 20px;
+            display: flex; gap: 10px; z-index: 2000; align-items: stretch;
+            pointer-events: none;
+        }
+        #bottom-bar > * {
+            pointer-events: auto;
+        }
+
+        #btn-toggle-ui {
+            display: block; 
+            font-size: 1.2rem; padding: 10px 15px; 
+            color: #fff; background: rgba(15, 15, 15, 0.9);
+            border: 1px solid rgba(255,255,255,0.2); cursor: pointer; border-radius: 8px;
+            white-space: nowrap; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        }
+
+        #controls-panel {
+            position: absolute; top: 20px; left: 20px;
+            width: 320px; padding: 20px;
+            display: flex; flex-direction: column; gap: 15px;
+            box-sizing: border-box;
+        }
+
+        #waveform-panel {
+            position: absolute; bottom: 80px; right: 20px;
+            width: 400px; height: 160px; padding: 15px;
+            display: flex; flex-direction: column; gap: 10px;
+            transition: opacity 0.3s; box-sizing: border-box;
+        }
+
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+
+        button {
+            background: rgba(255, 255, 255, 0.05); color: #aaa; border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px 16px; cursor: pointer; font-family: inherit; 
+            text-transform: uppercase; font-weight: bold; font-size: 0.75rem;
+            border-radius: 4px; transition: all 0.2s; touch-action: manipulation;
+        }
+
+        button:hover:not(:disabled), button:active:not(:disabled) { color: #fff; background: rgba(255, 255, 255, 0.1); border-color: rgba(255,255,255,0.3); }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
+        
+        #btn-mode-genealogy.active { background: rgba(0, 255, 102, 0.15); border-color: var(--primary-ui); color: var(--primary-ui); }
+        #btn-mode-linear.active { background: rgba(0, 204, 255, 0.15); border-color: var(--complement-ui); color: var(--complement-ui); }
+        #btn-mode-family.active { background: rgba(255, 0, 255, 0.15); border-color: var(--family-ui); color: var(--family-ui); }
+        #btn-toggle-sankey.active { background: rgba(255,255,255,0.2); color: #fff; border-color: #fff; }
+        #btn-open-branch { background: rgba(255, 255, 255, 0.05); border-color: rgba(255,255,255,0.3); color: #fff; }
+
+        #stats-panel {
+            background: rgba(0,0,0,0.6); padding: 12px; border-left: 3px solid #fff; border-radius: 4px;
+            display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem;
+        }
+        .stat-row { display: flex; justify-content: space-between; }
+        .stat-val { font-weight: bold; color: #fff; }
+
+        .search-container { 
+            display: flex; gap: 0; background: rgba(15, 15, 15, 0.9); 
+            border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; 
+            overflow: hidden; flex-grow: 1; 
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        }
+        .search-container input {
+            background: transparent; color: #fff; border: none; padding: 10px 12px;
+            font-family: monospace; font-size: 16px; outline: none; width: 100%;
+        }
+        .search-container button { 
+            background: rgba(255,255,255,0.05); color: #aaa; border: none; 
+            border-left: 1px solid rgba(255,255,255,0.1); border-radius: 0; 
+            padding: 10px 16px; cursor: pointer; font-weight: bold; font-family: inherit;
+        }
+        .search-container button:hover:not(:disabled) {
+            color: #fff; background: rgba(255,255,255,0.1);
+        }
+
+        .gap-controls {
+            display: flex; align-items: center; justify-content: space-between; 
+            background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;
+            height: 36px; margin-top: 5px;
+        }
+        .gap-controls button { border: none; border-radius: 0; height: 100%; background: transparent; padding: 0 15px; }
+        .gap-controls button:hover { background: rgba(255,255,255,0.1); }
+        .gap-controls input {
+            background: transparent; color: #fff; border: none; text-align: center;
+            width: 100%; font-family: monospace; font-size: 16px; outline: none;
+        }
+
+        #waveform-canvas { width: 100%; flex-grow: 1; image-rendering: pixelated; }
+        #waveform-label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+
+        #tooltip {
+            position: absolute; display: none; background: rgba(10, 10, 10, 0.95);
+            border: 1px solid rgba(255,255,255,0.15); padding: 15px; border-radius: 6px; 
+            pointer-events: none; box-shadow: 0 8px 30px rgba(0,0,0,0.8); z-index: 1000;
+        }
+        
+        .tt-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 15px; font-size: 0.85rem; align-items: start; }
+        .tt-label { color: #888; white-space: nowrap; }
+        .tt-val { color: #fff; font-family: monospace; word-break: break-all; }
+        
+        #tt-family { font-weight: bold; color: var(--family-ui); }
+        
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+        /* Branch View Modal */
+        #branch-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 15, 15, 0.95); z-index: 4000;
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .branch-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom: 20px; }
+        .branch-header h2 { margin: 0; font-size: 1.2rem; color: var(--family-ui); text-transform: uppercase; letter-spacing: 2px;}
+        .branch-controls { display: flex; gap: 10px; }
+        .branch-controls input {
+            flex-grow: 1; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2);
+            color: #fff; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 1rem; outline: none;
+            width: 100%; box-sizing: border-box;
+        }
+        .branch-controls button { background: rgba(255, 0, 255, 0.15); border-color: var(--family-ui); color: var(--family-ui); padding: 12px 20px; }
+        
+        .branch-list { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+        
+        .branch-item {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+            padding: 12px 15px; border-radius: 6px; display: flex; flex-direction: column;
+            font-family: monospace; font-size: 0.9rem;
+        }
+        .branch-main-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .branch-future-row { 
+            font-size: 0.8rem; color: #aaa; margin-top: 8px; padding-top: 8px; 
+            border-top: 1px dashed rgba(255,255,255,0.15); width: 100%; text-align: left; 
+        }
+        .branch-future-label { color: var(--complement-ui); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; font-size: 0.7rem; margin-right: 5px; }
+        
+        .branch-bin { color: #fff; letter-spacing: 1px;}
+        .branch-math { color: var(--primary-ui); font-weight: bold; }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            #tooltip {
+                position: fixed !important; top: 0 !important; left: 0 !important;
+                width: 100% !important; border-radius: 0 !important;
+                border-width: 0 0 1px 0 !important;
+                display: block !important;
+                padding: 10px 15px !important; box-sizing: border-box; z-index: 3000;
+                backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            }
+            .tt-grid { 
+                grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 0.75rem; 
+            }
+            
+            #bottom-bar { bottom: 15px; left: 15px; right: 15px; }
+            #ui-layer.collapsed { display: none; }
+            #controls-panel { top: 60px; left: 15px; right: 15px; width: auto; max-height: 50vh; overflow-y: auto; }
+            #waveform-panel { bottom: 80px; left: 15px; right: 15px; width: auto; height: 120px; }
+            
+            .branch-controls { flex-direction: column; }
+            .branch-main-row { flex-direction: column; align-items: flex-start; gap: 5px; }
+        }
+
+        @media (max-height: 500px) and (orientation: landscape) {
+            #tooltip {
+                position: fixed !important; top: 0 !important; left: 0 !important;
+                width: 100% !important; border-radius: 0 !important;
+                border-width: 0 0 1px 0 !important; display: block !important;
+                padding: 5px 15px !important; box-sizing: border-box; z-index: 3000;
+                backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            }
+            .tt-grid { grid-template-columns: auto 1fr auto 1fr; gap: 2px 10px; font-size: 0.7rem; }
+            
+            #bottom-bar { bottom: 10px; left: 10px; right: 10px; }
+            #ui-layer.collapsed { display: none; }
+            #controls-panel { top: 40px; left: 10px; width: 300px; max-height: calc(100vh - 100px); overflow-y: auto; padding: 15px; }
+            #waveform-panel { bottom: 70px; right: 10px; top: auto; width: 300px; height: 100px; padding: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="bottom-bar">
+        <button id="btn-toggle-ui">☰ Menu</button>
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Search Dec or Bin...">
+            <button id="btn-search" title="Focus Selection">GO</button>
+            <button id="btn-ancestor" disabled title="Go up to immediate Ancestor">⬆</button>
+        </div>
+    </div>
+
+    <div id="ui-layer">
+        <div id="controls-panel" class="hud-panel">
+            <div id="stats-panel">
+                <div class="stat-row"><span>Zoom:</span> <span id="debug-zoom" class="stat-val">1.0x</span></div>
+                <div class="stat-row"><span>Depth:</span> <span id="debug-depth" class="stat-val">-</span></div>
+            </div>
+            <div class="control-group">
+                <button id="btn-mode-linear" class="active">Complement Descent</button>
+                <button id="btn-mode-genealogy">Dynamic Genealogy & Siblings</button>
+                <button id="btn-mode-family">Family Atlas Colors</button>
+                <button id="btn-open-branch">Open Branch View</button>
+            </div>
+            <div class="control-group">
+                <button id="btn-toggle-sankey" class="active">Toggle Sankey Flow</button>
+                <div class="gap-controls">
+                    <button id="btn-gap-dec">-</button>
+                    <input type="number" id="gapInput" min="0" max="256" value="0" title="Column Gap (px)">
+                    <button id="btn-gap-inc">+</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="waveform-panel" class="hud-panel">
+            <div id="waveform-label">Structural Complexity (Runs / Depth)</div>
+            <canvas id="waveform-canvas"></canvas>
+        </div>
+    </div>
+
+    <div id="branch-modal" style="display: none;">
+        <div class="branch-header">
+            <h2>Family Branch View</h2>
+            <button id="btn-close-branch">✕ Close</button>
+        </div>
+        <div class="branch-controls">
+            <input type="text" id="branch-root-input" placeholder="Enter alternating root (e.g., 1010)">
+            <button id="btn-calc-branch">Calculate Branches</button>
+        </div>
+        <div id="branch-error" style="color: #ff3333; margin-top: 10px; font-size: 0.85rem;"></div>
+        <div id="branch-results"></div>
+    </div>
+
+    <div id="tooltip">
+        <div class="tt-grid">
+            <div class="tt-label">Depth:</div> <div id="tt-depth" class="tt-val" style="color:#00ff66;">-</div>
+            <div class="tt-label">Integer:</div> <div id="tt-int" class="tt-val">-</div>
+            <div class="tt-label">Binary:</div> <div id="tt-bin" class="tt-val">-</div>
+            <div class="tt-label">Ancestor:</div> <div id="tt-family" class="tt-val">-</div>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        // --- INFINITE PRECISION CONSTANTS ---
+        const BASE_SIZE = 1000;
+        const P_BITS = 200n; 
+        const P_MULT = 1n << P_BITS;
+
+        // --- BAYER DITHERING ENGINE ---
+        const bayer8x8 = [
+             0, 32,  8, 40,  2, 34, 10, 42,
+            48, 16, 56, 24, 50, 18, 58, 26,
+            12, 44,  4, 36, 14, 46,  6, 38,
+            60, 28, 52, 20, 62, 30, 54, 22,
+             3, 35, 11, 43,  1, 33,  9, 41,
+            51, 19, 59, 27, 49, 17, 57, 25,
+            15, 47,  7, 39, 13, 45,  5, 37,
+            63, 31, 55, 23, 61, 29, 53, 21
+        ];
+
+        const patternCache = new Map();
+
+        // --- STATE ---
+        const state = {
+            width: window.innerWidth, height: window.innerHeight,
+            camX_frac: P_MULT * 50n / 1000n, camY_frac: P_MULT / 2n, zoom: 1, gapPx: 0
+        , 
+            
+            // Pointer & Multi-Touch State
+            pointers: [], isDragging: false, hasMoved: false, 
+            lastMouse: { x: 0, y: 0 }, mouse: { x: 0, y: 0 },
+            dragStartX: 0, dragStartY: 0,
+            lastPinchDist: null, lastMidpoint: null,
+            
+            hovered: null, mode: 'linear', showLines: true,
+            nodeCache: new Map(), linearEdges: [], waveform: [],
+            activeRootRuns: null, activeCompRuns: null, activeRoot: null,
+            activeRootIdeal: null, activeCompIdeal: null
+        };
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        ctx.imageSmoothingEnabled = false; 
+
+        const waveCanvas = document.getElementById('waveform-canvas');
+        const waveCtx = waveCanvas.getContext('2d');
+
+        // --- CORE MATH MAPPING ---
+        function getColXFrac(d) { return d <= 1 ? 0n : P_MULT - (P_MULT >> BigInt(d - 1)); }
+        function getBlockYFrac(val, d) { return BigInt(val) * (P_MULT >> BigInt(d)); }
+        function getBlockSizeFrac(d) { return P_MULT >> BigInt(d); }
+        
+        function fracToScreenX(frac) {
+            let diff = Number(frac - state.camX_frac) / Number(P_MULT);
+            return (state.width / 2) + diff * BASE_SIZE * state.zoom;
+        }
+        function fracToScreenY(frac) {
+            let diff = Number(frac - state.camY_frac) / Number(P_MULT);
+            return (state.height / 2) + diff * BASE_SIZE * state.zoom;
+        }
+        function sizeToScreen(frac) { return (Number(frac) / Number(P_MULT)) * BASE_SIZE * state.zoom; }
+        
+        function applyOffset(baseFrac, pxDiff) {
+            let divisorBig = BigInt(Math.floor(BASE_SIZE * state.zoom));
+            if (divisorBig === 0n) divisorBig = 1n; 
+            let offsetBig = (BigInt(Math.round(pxDiff)) * P_MULT) / divisorBig;
+            return baseFrac + offsetBig;
+        }
+
+        function screenYToFrac(sy) { return applyOffset(state.camY_frac, sy - (state.height / 2)); }
+
+        function getScreenXInfo(screenX) {
+            let d = 1;
+            while (d < 1000) {
+                let sX = fracToScreenX(getColXFrac(d)) + (d - 1) * state.gapPx;
+                let sW = sizeToScreen(getBlockSizeFrac(d));
+                if (screenX <= sX + sW) {
+                    return { frac: applyOffset(getColXFrac(d), screenX - sX), d: d };
+                }
+                d++;
+            }
+            return { frac: getColXFrac(1000), d: 1000 };
+        }
+
+        function getScreenPos(d, val) {
+            let cxFrac = getColXFrac(d); let cyFrac = getBlockYFrac(val, d); let sizeFrac = getBlockSizeFrac(d);
+            let sX = fracToScreenX(cxFrac) + (d - 1) * state.gapPx;
+            return { x: sX + sizeToScreen(sizeFrac)/2, y: fracToScreenY(cyFrac + sizeFrac/2n), size: sizeToScreen(sizeFrac) };
+        }
+
+        function getDitherPattern(color, densityLevel) {
+            let key = `${color}_${densityLevel}`;
+            if (patternCache.has(key)) return patternCache.get(key);
+            let oc = document.createElement('canvas'); oc.width = 8; oc.height = 8;
+            let octx = oc.getContext('2d', {alpha: true});
+            octx.fillStyle = color;
+            for(let y=0; y<8; y++) {
+                for(let x=0; x<8; x++) { if (bayer8x8[y*8 + x] < densityLevel) octx.fillRect(x, y, 1, 1); }
+            }
+            let pat = ctx.createPattern(oc, 'repeat');
+            patternCache.set(key, pat);
+            return pat;
+        }
+
+        function getNodeAtScreen(screenX, screenY) {
+            let wy_frac = applyOffset(state.camY_frac, screenY - state.height / 2);
+            let dStart = 1; let foundCol = false; let cxFrac;
+            
+            while (dStart < 1000) {
+                cxFrac = getColXFrac(dStart);
+                let sX = fracToScreenX(cxFrac) + (dStart - 1) * state.gapPx;
+                let sW = sizeToScreen(getBlockSizeFrac(dStart));
+                if (screenX >= sX && screenX <= sX + sW) { foundCol = true; break; }
+                if (screenX < sX) break; 
+                dStart++;
+            }
+
+            if (!foundCol || wy_frac < 0n || wy_frac >= P_MULT) return null;
+
+            const maxRows = 1n << BigInt(dStart); 
+            const idx = wy_frac / getBlockSizeFrac(dStart);
+
+            if (idx >= 0n && idx < maxRows) return { depth: dStart, index: idx };
+            return null;
+        }
+
+        // --- FAST LOGIC HELPERS ---
+        function getBitLength(n) { return n === 0n ? 1 : n.toString(2).length; }
+        function getIdealAncestorFast(b) { let c = b[0]; for(let i=1;i<b.length;i++){ if(b[i]!==b[i-1])c+=b[i]; } return c; }
+        function getRunsFast(b) {
+            let runs = []; let count = 1; let len = b.length;
+            for (let i = 1; i < len; i++) { if (b[i] === b[i-1]) count++; else { runs.push(count); count = 1; } }
+            runs.push(count); return { firstBit: b[0], runs };
+        }
+        function runsToBin(fb, runs) {
+            let b = ''; let bit = fb;
+            for (let i = 0; i < runs.length; i++) { b += bit.repeat(runs[i]); bit = bit === '1' ? '0' : '1'; }
+            return b;
+        }
+        function duplicateRunAt(binStr, runIndex) {
+            let r = getRunsFast(binStr);
+            let newRuns = [...r.runs];
+            newRuns[runIndex]++;
+            return runsToBin(r.firstBit, newRuns);
+        }
+
+        // --- INIT & EVENTS ---
+        function init() { resize(); window.addEventListener('resize', resize); setupInput(); requestAnimationFrame(loop); }
+
+        function resize() {
+            state.width = window.innerWidth; state.height = window.innerHeight;
+            canvas.width = state.width; canvas.height = state.height;
+            ctx.imageSmoothingEnabled = false; 
+            const rect = document.getElementById('waveform-panel').getBoundingClientRect();
+            waveCanvas.width = rect.width || 300; waveCanvas.height = rect.height || 100; 
+            waveCtx.imageSmoothingEnabled = false; drawWaveform();
+        }
+
+        function focusNode(depth, val) {
+            let targetScreenSize = Math.min(state.width, state.height) * 0.15;
+            let blockSizeFrac = getBlockSizeFrac(depth);
+            let baseWorldSize = (Number(blockSizeFrac) / Number(P_MULT)) * BASE_SIZE;
+            
+            state.zoom = Math.max(0.1, Math.min(targetScreenSize / baseWorldSize, 1e100));
+            let centerFracX = getColXFrac(depth) + blockSizeFrac / 2n;
+            let centerFracY = getBlockYFrac(val, depth) + blockSizeFrac / 2n;
+            
+            let gapOffsetFrac = applyOffset(0n, (depth - 1) * state.gapPx);
+            state.camX_frac = centerFracX + gapOffsetFrac; state.camY_frac = centerFracY;
+        }
+
+        function setupInput() {
+            // UI Toggles & Search
+            document.getElementById('btn-toggle-ui').addEventListener('click', () => {
+                document.getElementById('ui-layer').classList.toggle('collapsed');
+                setTimeout(resize, 350);
+            });
+            document.getElementById('btn-mode-linear').onclick = () => { state.mode = 'linear'; updateModeUI(); };
+            document.getElementById('btn-mode-genealogy').onclick = () => { state.mode = 'genealogy'; updateModeUI(); };
+            document.getElementById('btn-mode-family').onclick = () => { state.mode = 'family'; updateModeUI(); };
+            document.getElementById('btn-toggle-sankey').onclick = (e) => { state.showLines = !state.showLines; e.target.className = state.showLines ? 'active' : ''; };
+            
+            const gapInput = document.getElementById('gapInput');
+            const updateGap = (val) => { let v = Math.max(0, Math.min(256, parseInt(val) || 0)); gapInput.value = v; state.gapPx = v; };
+            gapInput.addEventListener('change', e => updateGap(e.target.value));
+            document.getElementById('btn-gap-dec').onclick = () => updateGap(state.gapPx - 1);
+            document.getElementById('btn-gap-inc').onclick = () => updateGap(state.gapPx + 1);
+            
+            document.getElementById('btn-search').onclick = handleSearch;
+            document.getElementById('searchInput').addEventListener('keypress', e => { if(e.key === 'Enter') handleSearch(); });
+            document.getElementById('btn-ancestor').onclick = goToAncestor;
+
+            // --- Branch View Logic ---
+            const branchModal = document.getElementById('branch-modal');
+            const btnOpenBranch = document.getElementById('btn-open-branch');
+            const btnCloseBranch = document.getElementById('btn-close-branch');
+            const btnCalcBranch = document.getElementById('btn-calc-branch');
+            const branchInput = document.getElementById('branch-root-input');
+            const branchError = document.getElementById('branch-error');
+            const branchResults = document.getElementById('branch-results');
+
+            btnOpenBranch.onclick = () => {
+                branchModal.style.display = 'flex';
+                // Auto-fill from selected node if it's an alternating root
+                if (state.activeRoot) {
+                    let activeBin = BigInt(state.activeRoot.index).toString(2).padStart(state.activeRoot.depth, '0');
+                    if (activeBin === getIdealAncestorFast(activeBin)) {
+                        branchInput.value = activeBin;
+                    }
+                }
+            };
+            btnCloseBranch.onclick = () => branchModal.style.display = 'none';
+
+            btnCalcBranch.onclick = () => {
+                branchError.textContent = '';
+                branchResults.innerHTML = '';
+                let rootStr = branchInput.value.trim();
+
+                if (!/^[01]+$/.test(rootStr)) {
+                    branchError.textContent = "Please enter a valid binary string.";
+                    return;
+                }
+
+                for(let i = 1; i < rootStr.length; i++) {
+                    if (rootStr[i] === rootStr[i-1]) {
+                        branchError.textContent = "Root must consist of alternating bits (e.g., 0, 1, 10, 0101).";
+                        return;
+                    }
+                }
+
+                const rootVal = BigInt('0b' + rootStr);
+                const doubleVal = rootVal * 2n; 
+                const d = rootStr.length;
+                
+                let htmlOut = `<div class="branch-item" style="border-color: var(--family-ui);">
+                    <div class="branch-main-row">
+                        <span>Root: <span class="branch-bin">${rootStr}</span> (x = ${rootVal})</span>
+                        <span class="branch-math">2x = ${doubleVal}</span>
+                    </div>
+                </div><div class="branch-list">`;
+
+                // Calculate children
+                for (let i = 0; i < d; i++) {
+                    // Generate Child by duplicating the i-th bit
+                    let childStr = duplicateRunAt(rootStr, i);
+                    let childVal = BigInt('0b' + childStr);
+                    let diff = childVal - doubleVal;
+                    let sign = diff >= 0n ? '+' : '-';
+                    let absDiff = diff >= 0n ? diff : -diff;
+                    let childBinomial = `2x ${sign} ${absDiff}`;
+
+                    // Predict Future Grandchildren (Branching pattern in the NEXT generation)
+                    let futureBranches = [];
+                    const doubleChildVal = childVal * 2n;
+                    
+                    // The core geometrical rule: We can only duplicate runs j >= i
+                    for (let j = i; j < d; j++) {
+                        let gcStr = duplicateRunAt(childStr, j);
+                        let gcVal = BigInt('0b' + gcStr);
+                        let gcDiff = gcVal - doubleChildVal;
+                        let gcSign = gcDiff >= 0n ? '+' : '-';
+                        let gcAbs = gcDiff >= 0n ? gcDiff : -gcDiff;
+                        futureBranches.push({ diff: gcDiff, text: `2x ${gcSign} ${gcAbs}` });
+                    }
+                    
+                    // Sort numerically to match standard geometry notation (e.g., 2x-1, 2x+1, 2x+3)
+                    futureBranches.sort((a, b) => Number(a.diff - b.diff));
+                    let futureText = futureBranches.map(b => b.text).join(', ');
+
+                    htmlOut += `
+                        <div class="branch-item">
+                            <div class="branch-main-row">
+                                <span class="branch-bin">${childStr}</span>
+                                <span style="color: #aaa;">Value: ${childVal}</span>
+                                <span class="branch-math">${childBinomial}</span>
+                            </div>
+                            <div class="branch-future-row">
+                                <span class="branch-future-label">➔ Future Branches:</span> ${futureText}
+                            </div>
+                        </div>`;
+                }
+                htmlOut += `</div>`;
+                branchResults.innerHTML = htmlOut;
+            };
+            branchInput.addEventListener('keypress', e => { if(e.key === 'Enter') btnCalcBranch.click(); });
+            // --- End Branch View Logic ---
+
+            // Mouse Wheel Zoom (Desktop)
+            canvas.addEventListener('wheel', e => {
+                e.preventDefault();
+                const factor = Math.pow(1.1, -e.deltaY * 0.001 * 10);
+                let mouseXInfo = getScreenXInfo(e.clientX);
+                let mouseFracX = mouseXInfo.frac;
+                let mouseD = mouseXInfo.d; 
+                let mouseFracY = screenYToFrac(e.clientY);
+
+                state.zoom = Math.max(0.1, Math.min(state.zoom * factor, 1e100));
+
+                let targetPxNoGap = e.clientX - state.width / 2 - (mouseD - 1) * state.gapPx;
+                state.camX_frac = applyOffset(mouseFracX, -targetPxNoGap);
+                state.camY_frac = applyOffset(mouseFracY, -(e.clientY - state.height / 2));
+            }, { passive: false });
+
+            // Multi-Touch & Pointer Logic
+            canvas.addEventListener('pointerdown', e => {
+                state.pointers.push({ id: e.pointerId, x: e.clientX, y: e.clientY });
+
+                if (state.pointers.length === 1) {
+                    state.isDragging = true;
+                    state.hasMoved = false; 
+                    state.lastMouse = { x: e.clientX, y: e.clientY };
+                    state.mouse = { x: e.clientX, y: e.clientY }; 
+                    state.dragStartX = e.clientX; state.dragStartY = e.clientY; 
+                    canvas.style.cursor = 'grabbing';
+                } else if (state.pointers.length === 2) {
+                    state.isDragging = false; 
+                    state.hasMoved = true; 
+                    const p1 = state.pointers[0]; const p2 = state.pointers[1];
+                    state.lastPinchDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                    state.lastMidpoint = { x: (p1.x + p2.x)/2, y: (p1.y + p2.y)/2 };
+                }
+                canvas.setPointerCapture(e.pointerId);
+            });
+
+            const handlePointerUp = (e) => {
+                state.pointers = state.pointers.filter(p => p.id !== e.pointerId);
+
+                if (state.pointers.length === 0) {
+                    if (state.isDragging && !state.hasMoved && e.target === canvas) {
+                        let tappedNode = getNodeAtScreen(e.clientX, e.clientY);
+                        if (tappedNode) { 
+                            focusNode(tappedNode.depth, tappedNode.index); 
+                            generateTree(tappedNode); 
+                        } else { 
+                            clearSelection(); 
+                        }
+                    }
+                    state.isDragging = false; 
+                    state.hasMoved = false;
+                    state.lastPinchDist = null; state.lastMidpoint = null;
+                    canvas.style.cursor = 'crosshair'; 
+                } else if (state.pointers.length === 1) {
+                    state.isDragging = true;
+                    state.hasMoved = true; 
+                    state.lastMouse = { x: state.pointers[0].x, y: state.pointers[0].y };
+                    state.lastPinchDist = null; state.lastMidpoint = null;
+                }
+            };
+            
+            window.addEventListener('pointerup', handlePointerUp);
+            window.addEventListener('pointercancel', handlePointerUp);
+            
+            canvas.addEventListener('pointermove', e => {
+                state.mouse = { x: e.clientX, y: e.clientY }; 
+                
+                const pIndex = state.pointers.findIndex(p => p.id === e.pointerId);
+                if (pIndex !== -1) state.pointers[pIndex] = { id: e.pointerId, x: e.clientX, y: e.clientY };
+
+                if (state.pointers.length === 1 && state.isDragging) {
+                    if (!state.hasMoved) {
+                        const dist = Math.hypot(e.clientX - state.dragStartX, e.clientY - state.dragStartY);
+                        if (dist > 10) state.hasMoved = true;
+                    }
+
+                    if (state.hasMoved) {
+                        let dx = e.clientX - state.lastMouse.x; let dy = e.clientY - state.lastMouse.y;
+                        state.lastMouse = { x: e.clientX, y: e.clientY };
+                        state.camX_frac = applyOffset(state.camX_frac, -dx); 
+                        state.camY_frac = applyOffset(state.camY_frac, -dy);
+                    }
+                } 
+                else if (state.pointers.length === 2) {
+                    const p1 = state.pointers[0]; const p2 = state.pointers[1];
+                    const currentDist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                    const midX = (p1.x + p2.x) / 2; const midY = (p1.y + p2.y) / 2;
+
+                    if (state.lastPinchDist !== null && state.lastMidpoint !== null) {
+                        if (currentDist > 10 && state.lastPinchDist > 10) {
+                            const factor = currentDist / state.lastPinchDist;
+                            let lastXInfo = getScreenXInfo(state.lastMidpoint.x);
+                            let lastFracX = lastXInfo.frac; let lastD = lastXInfo.d;
+                            let lastFracY = screenYToFrac(state.lastMidpoint.y);
+
+                            state.zoom = Math.max(0.1, Math.min(state.zoom * factor, 1e100));
+
+                            let targetPxNoGap = midX - state.width / 2 - (lastD - 1) * state.gapPx;
+                            state.camX_frac = applyOffset(lastFracX, -targetPxNoGap);
+                            state.camY_frac = applyOffset(lastFracY, -(midY - state.height / 2));
+                        }
+                    }
+                    
+                    state.lastPinchDist = currentDist;
+                    state.lastMidpoint = { x: midX, y: midY };
+                }
+            });
+        }
+
+        function clearSelection() {
+            state.activeRoot = null; state.activeRootRuns = null; state.activeCompRuns = null;
+            state.linearEdges = []; state.waveform = []; state.nodeCache.clear();
+            document.getElementById('btn-ancestor').disabled = true; drawWaveform(); 
+        }
+
+        function handleSearch() {
+            let val = document.getElementById('searchInput').value.trim();
+            if (!val) return;
+            let isBin = /^[01]+$/.test(val) && val.length > 0;
+            let tVal, tDepth;
+            if (isBin) { tDepth = val.length; tVal = BigInt('0b' + val); } 
+            else { try { tVal = BigInt(val); tDepth = tVal === 0n ? 1 : tVal.toString(2).length; } catch(e) { return; } }
+            focusNode(tDepth, tVal); generateTree({ index: tVal, depth: tDepth });
+            if(window.innerWidth <= 768) document.getElementById('ui-layer').classList.add('collapsed');
+        }
+
+        function goToAncestor() {
+            if (!state.activeRoot) return;
+            const bin = BigInt(state.activeRoot.index).toString(2).padStart(state.activeRoot.depth, '0');
+            const runs = getRunsFast(bin).runs;
+            for (let i = 0; i < runs.length; i++) {
+                if (runs[i] > 1) {
+                    let newRuns = [...runs]; newRuns[i]--;
+                    let pBin = runsToBin(bin[0], newRuns); let pVal = BigInt('0b' + pBin); let pDepth = pBin.length;
+                    focusNode(pDepth, pVal); generateTree({ index: pVal, depth: pDepth });
+                    break;
+                }
+            }
+        }
+
+        function updateModeUI() {
+            document.getElementById('btn-mode-linear').className = state.mode === 'linear' ? 'active' : '';
+            document.getElementById('btn-mode-genealogy').className = state.mode === 'genealogy' ? 'active' : '';
+            document.getElementById('btn-mode-family').className = state.mode === 'family' ? 'active' : '';
+            document.getElementById('waveform-panel').style.opacity = (state.mode === 'linear') ? '1' : '0';
+            document.getElementById('waveform-panel').style.pointerEvents = (state.mode === 'linear') ? 'auto' : 'none';
+            let bCol = '#fff';
+            if (state.mode === 'linear') bCol = 'var(--complement-ui)';
+            else if (state.mode === 'genealogy') bCol = 'var(--primary-ui)';
+            else if (state.mode === 'family') bCol = 'var(--family-ui)';
+            document.getElementById('stats-panel').style.borderLeftColor = bCol;
+            state.nodeCache.clear(); 
+            if (state.activeRoot) generateTree(state.activeRoot);
+        }
+
+        function generateTree(root) {
+            state.nodeCache.clear(); state.activeRoot = root;
+            const rootVal = BigInt(root.index); const bin = rootVal.toString(2).padStart(root.depth, '0');
+            state.activeRootIdeal = getIdealAncestorFast(bin); state.activeRootRuns = getRunsFast(bin);
+            const compVal = (1n << BigInt(root.depth)) - 1n - rootVal; const compBin = compVal.toString(2).padStart(root.depth, '0');
+            state.activeCompIdeal = getIdealAncestorFast(compBin); state.activeCompRuns = getRunsFast(compBin);
+            document.getElementById('btn-ancestor').disabled = (state.activeRootRuns.runs.length === bin.length);
+            state.linearEdges = []; state.waveform = [];
+            let curV = rootVal, curD = root.depth;
+            while(curV >= 0n) {
+                let curBin = curV.toString(2).padStart(curD, '0');
+                state.waveform.push(getRunsFast(curBin).runs.length / curD);
+                if (curV <= 1n) break;
+                let canonD = getBitLength(curV); let nxtV = (1n << BigInt(canonD)) - 1n - curV;
+                let nxtD = getBitLength(nxtV); if (nxtV === 0n) nxtD = 1;
+                if (state.mode === 'linear') state.linearEdges.push({ d1: curD, val1: curV, d2: nxtD, val2: nxtV, color: 'rgba(0, 204, 255, 0.4)' });
+                curV = nxtV; curD = nxtD;
+            }
+            drawWaveform();
+        }
+
+        function computeNodeData(val, d) {
+            const bin = val.toString(2).padStart(d, '0');
+            const isTop = bin[0] === '0'; 
+            let p = 0; for(let i=0; i<d; i++) { if (bin[i] === '1') p++; }
+            let z = d - p;
+            let rawDensity = isTop ? (2 * p * z) / (d * d) : (p * p + z * z) / (d * d);
+            let densityLevel = Math.max(0, Math.min(64, Math.round(rawDensity * 64)));
+            let col0 = '#000000'; let col1 = isTop ? '#aaaaaa' : '#ffffff'; let edges = [];
+            
+            if (state.mode === 'family') {
+                let L = getRunsFast(bin).runs.length;
+                col1 = `hsl(${(L * 137.508) % 360}, ${isTop?65:95}%, ${isTop?40:60}%)`;
+            } 
+            else if (state.mode === 'genealogy' && state.activeRootIdeal) {
+                const ideal = getIdealAncestorFast(bin);
+                if (ideal === state.activeRootIdeal) {
+                    const R_v = getRunsFast(bin).runs; const R_A = state.activeRootRuns.runs;
+                    if (d === state.activeRoot.depth && val === BigInt(state.activeRoot.index)) {
+                        col0 = isTop ? '#aa0022' : '#ff0033'; col1 = isTop ? '#cccccc' : '#ffffff';
+                    } else {
+                        let isAnc = true; let firstPosIdx = -1;
+                        for(let k=0; k<R_v.length; k++) { if (R_v[k] > R_A[k]) { isAnc = false; if (firstPosIdx === -1) firstPosIdx = k; } }
+                        if (isAnc) { col0 = isTop ? '#aa0022' : '#ff0033'; col1 = isTop ? '#009933' : '#00ff66'; } 
+                        else { col0 = '#000'; col1 = `hsl(${(firstPosIdx * 137.508) % 360}, ${isTop?65:95}%, ${isTop?40:60}%)`; }
+                    }
+                    if (state.showLines) {
+                        for(let r=0; r<R_v.length; r++) {
+                            if (R_v[r] > 1) {
+                                let pRuns = [...R_v]; pRuns[r]--; let pBin = runsToBin(bin[0], pRuns);
+                                let pVal = BigInt('0b' + pBin); let pDepth = pBin.length;
+                                let pAnc = true; let p_idx = -1;
+                                for(let k=0; k<pRuns.length; k++) { if (pRuns[k] > R_A[k]) { pAnc = false; if (p_idx === -1) p_idx = k; } }
+                                let pCol = pAnc ? 'hsla(154, 100%, 50%, 0.4)' : `hsla(${(p_idx * 137.508) % 360}, 95%, 60%, 0.4)`;
+                                edges.push({ d1: pDepth, val1: pVal, d2: d, val2: val, color: pCol});
+                            }
+                        }
+                    }
+                } else if (ideal === state.activeCompIdeal) {
+                    const R_v = getRunsFast(bin).runs; const R_C = state.activeCompRuns.runs;
+                    let isAnc = true; let firstPosIdx = -1;
+                    for(let k=0; k<R_v.length; k++) { if (R_v[k] > R_C[k]) { isAnc = false; if (firstPosIdx === -1) firstPosIdx = k; } }
+                    if (isAnc) { col0 = isTop ? '#aa9900' : '#ffcc00'; col1 = isTop ? '#0099aa' : '#00ccff'; } 
+                    else { col0 = '#000'; col1 = `hsl(${(firstPosIdx * 137.508) % 360}, ${isTop?50:70}%, ${isTop?40:50}%)`; }
+
+                    if (state.showLines) {
+                        for(let r=0; r<R_v.length; r++) {
+                            if (R_v[r] > 1) {
+                                let pRuns = [...R_v]; pRuns[r]--; let pBin = runsToBin(bin[0], pRuns);
+                                let pVal = BigInt('0b' + pBin); let pDepth = pBin.length;
+                                let pAnc = true; let p_idx = -1;
+                                for(let k=0; k<pRuns.length; k++) { if (pRuns[k] > R_C[k]) { pAnc = false; if (p_idx === -1) p_idx = k; } }
+                                let pCol = pAnc ? 'hsla(192, 100%, 50%, 0.3)' : `hsla(${(p_idx * 137.508) % 360}, 70%, 50%, 0.3)`;
+                                edges.push({ d1: pDepth, val1: pVal, d2: d, val2: val, color: pCol});
+                            }
+                        }
+                    }
+                }
+            }
+            else if (state.mode === 'linear' && state.activeRoot) {
+                const isPrimary = state.linearEdges.some(e => e.d1 === d && e.val1 === val) || (d === state.activeRoot.depth && val === BigInt(state.activeRoot.index));
+                if (isPrimary) { col0 = isTop ? '#aa0022' : '#ff0033'; col1 = isTop ? '#009933' : '#00ff66'; }
+            }
+            return { bin, col0, col1, edges, isTop, densityLevel };
+        }
+
+        function loop() { updateHover(); draw(); requestAnimationFrame(loop); }
+
+        function updateHover() {
+            if (state.pointers.length > 1) {
+                state.hovered = null; 
+                if (window.innerWidth > 768) document.getElementById('tooltip').style.display = 'none';
+                else clearTooltipData();
+                return;
+            }
+
+            const node = getNodeAtScreen(state.mouse.x, state.mouse.y);
+
+            if (node) {
+                state.hovered = node;
+                const tt = document.getElementById('tooltip');
+                
+                if (window.innerWidth > 768) {
+                    tt.style.display = 'block'; 
+                    let ttX = state.mouse.x + 20; 
+                    let ttY = state.mouse.y - 120; 
+                    if (ttY < 10) ttY = state.mouse.y + 40; 
+                    if (ttX + 250 > state.width) ttX = state.width - 260; 
+                    tt.style.left = ttX + 'px'; tt.style.top = ttY + 'px';
+                }
+
+                document.getElementById('tt-depth').textContent = node.depth; 
+                document.getElementById('tt-int').textContent = node.index.toString();
+                let bin = node.index.toString(2).padStart(node.depth, '0');
+                
+                document.getElementById('tt-bin').textContent = bin;
+                document.getElementById('tt-family').textContent = getIdealAncestorFast(bin);
+            } else {
+                state.hovered = null; 
+                if (window.innerWidth > 768) {
+                    document.getElementById('tooltip').style.display = 'none';
+                } else {
+                    clearTooltipData();
+                }
+            }
+        }
+
+        function clearTooltipData() {
+            document.getElementById('tt-depth').textContent = '-';
+            document.getElementById('tt-int').textContent = '-';
+            document.getElementById('tt-bin').textContent = '-';
+            document.getElementById('tt-family').textContent = '-';
+        }
+
+        function draw() {
+            ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0, 0, state.width, state.height);
+            let dStart = 1; 
+            while (dStart < 1000) { 
+                let sX = fracToScreenX(getColXFrac(dStart)) + (dStart - 1) * state.gapPx;
+                let sW = sizeToScreen(getBlockSizeFrac(dStart));
+                if (sX + sW > 0) break; 
+                dStart++; 
+            }
+            
+            let dynamicEdges = [];
+            let yTopScr = Math.max(0, fracToScreenY(0n)); let yBotScr = Math.min(state.height, fracToScreenY(P_MULT));
+            let colGrad = null;
+            if (yBotScr > yTopScr) {
+                colGrad = ctx.createLinearGradient(0, yTopScr, 0, yBotScr);
+                let frac0 = Math.max(0, Math.min(1, Number(screenYToFrac(yTopScr)) / Number(P_MULT)));
+                let frac1 = Math.max(0, Math.min(1, Number(screenYToFrac(yBotScr)) / Number(P_MULT)));
+                let c0 = Math.floor(frac0 * 255); let c1 = Math.floor(frac1 * 255);
+                colGrad.addColorStop(0, `rgb(${c0},${c0},${c0})`); colGrad.addColorStop(1, `rgb(${c1},${c1},${c1})`);
+            }
+
+            for (let d = dStart; ; d++) {
+                let colXFrac = getColXFrac(d); 
+                let blockSizeFrac = getBlockSizeFrac(d); let screenBlockSize = sizeToScreen(blockSizeFrac);
+                let screenX = Math.floor(fracToScreenX(colXFrac)) + (d - 1) * state.gapPx;
+                if (screenX > state.width) break;
+
+                if (screenBlockSize < 1) {
+                    let colWidth = Math.ceil(screenBlockSize);
+                    if (colWidth >= 1 && colGrad && yBotScr > yTopScr) {
+                        ctx.fillStyle = colGrad; ctx.fillRect(screenX, yTopScr, colWidth, yBotScr - yTopScr);
+                    }
+                    if (state.gapPx === 0 && screenBlockSize < 0.2) break; 
+                    continue; 
+                }
+
+                let wTop_frac = applyOffset(state.camY_frac, -state.height / 2);
+                let wBot_frac = applyOffset(state.camY_frac, state.height / 2);
+                let iStart = wTop_frac / blockSizeFrac; let iEnd = wBot_frac / blockSizeFrac + 1n;
+                const maxRows = 1n << BigInt(d);
+                if (iStart < 0n) iStart = 0n; if (iEnd > maxRows) iEnd = maxRows;
+                let count = Number(iEnd - iStart);
+
+                for (let i = 0; i < count; i++) {
+                    const val = iStart + BigInt(i); const blockYFrac = getBlockYFrac(val, d);
+                    const screenY = Math.floor(fracToScreenY(blockYFrac));
+                    const size = Math.ceil(screenBlockSize); const cellSize = size / d;
+                    
+                    const cacheKey = val.toString() + '_' + d; let nData = state.nodeCache.get(cacheKey);
+                    if (!nData) { nData = computeNodeData(val, d); state.nodeCache.set(cacheKey, nData); }
+
+                    if (state.showLines && nData.edges.length > 0) dynamicEdges.push(...nData.edges);
+
+                    ctx.fillStyle = nData.col0; ctx.fillRect(screenX, screenY, size, size);
+
+                    if (cellSize < 1.0) {
+                        ctx.translate(screenX, screenY);
+                        ctx.fillStyle = getDitherPattern(nData.col1, nData.densityLevel);
+                        ctx.fillRect(0, 0, size, size); 
+                        ctx.translate(-screenX, -screenY);
+                        continue;
+                    }
+
+                    ctx.fillStyle = nData.col1; const bin = nData.bin;
+                    for (let r=0; r<d; r++) {
+                        for (let c=0; c<d; c++) {
+                            const diff = (bin[r] === '1') !== (bin[c] === '1');
+                            if (nData.isTop ? diff : !diff) { ctx.fillRect(Math.floor(screenX + c*cellSize), Math.floor(screenY + r*cellSize), Math.ceil(cellSize), Math.ceil(cellSize)); }
+                        }
+                    }
+                }
+            }
+            document.getElementById('debug-zoom').textContent = (state.zoom).toFixed(2) + 'x';
+            document.getElementById('debug-depth').textContent = dStart;
+
+            if (state.showLines) {
+                let edgesToDraw = (state.mode === 'genealogy') ? dynamicEdges : ((state.mode === 'linear') ? state.linearEdges : []);
+                ctx.shadowBlur = 0;
+                edgesToDraw.forEach(e => {
+                    let leftNode = e.d1 < e.d2 ? getScreenPos(e.d1, e.val1) : getScreenPos(e.d2, e.val2);
+                    let rightNode = e.d1 < e.d2 ? getScreenPos(e.d2, e.val2) : getScreenPos(e.d1, e.val1);
+                    
+                    let x1 = Math.floor(leftNode.x + leftNode.size / 2); 
+                    let y1_top = Math.floor(leftNode.y - leftNode.size/2); let y1_bot = Math.floor(leftNode.y + leftNode.size/2);
+                    let x2 = Math.floor(rightNode.x - rightNode.size / 2); 
+                    let y2_top = Math.floor(rightNode.y - rightNode.size/2); let y2_bot = Math.floor(rightNode.y + rightNode.size/2);
+                    
+                    if (leftNode.size < 0.5 || rightNode.size < 0.5) return; 
+
+                    ctx.fillStyle = e.color; ctx.beginPath();
+                    ctx.moveTo(x1, y1_top); ctx.bezierCurveTo(x1 + (x2 - x1)/2, y1_top, x1 + (x2 - x1)/2, y2_top, x2, y2_top);
+                    ctx.lineTo(x2, y2_bot); ctx.bezierCurveTo(x1 + (x2 - x1)/2, y2_bot, x1 + (x2 - x1)/2, y1_bot, x1, y1_bot);
+                    ctx.closePath(); ctx.fill();
+                });
+            }
+
+            if (state.activeRoot) {
+                let pos = getScreenPos(state.activeRoot.depth, state.activeRoot.index);
+                if (pos.x + pos.size > 0 && pos.x - pos.size < state.width && pos.y + pos.size > 0 && pos.y - pos.size < state.height) {
+                    ctx.save();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = 'var(--primary-ui)';
+                    ctx.strokeRect(Math.floor(pos.x - pos.size/2) - 2, Math.floor(pos.y - pos.size/2) - 2, Math.ceil(pos.size) + 4, Math.ceil(pos.size) + 4);
+                    ctx.restore();
+                }
+            }
+        }
+
+        function drawWaveform() {
+            if (state.mode !== 'linear') return;
+            const w = waveCanvas.width, h = waveCanvas.height; waveCtx.clearRect(0,0,w,h);
+            if (state.waveform.length === 0) return;
+            waveCtx.strokeStyle = 'rgba(0, 255, 102, 0.3)'; waveCtx.lineWidth = 1;
+            waveCtx.setLineDash([5, 5]); waveCtx.beginPath(); waveCtx.moveTo(0, 10); waveCtx.lineTo(w, 10); waveCtx.stroke();
+            waveCtx.setLineDash([]);
+            waveCtx.beginPath(); waveCtx.strokeStyle = 'var(--complement-ui)'; waveCtx.lineWidth = 2;
+            const numPoints = state.waveform.length; const maxLog = Math.log(numPoints + 1);
+            state.waveform.forEach((complexity, i) => {
+                const px = Math.floor((Math.log(i + 2) / maxLog) * w); 
+                const py = Math.floor(h - (complexity * (h - 20)) - 10); 
+                if (i===0) waveCtx.moveTo(px, py); else waveCtx.lineTo(px, py);
+            });
+            waveCtx.stroke();
+            waveCtx.fillStyle = '#fff';
+            state.waveform.forEach((complexity, i) => {
+                const px = Math.floor((Math.log(i + 2) / maxLog) * w); 
+                const py = Math.floor(h - (complexity * (h - 20)) - 10);
+                waveCtx.beginPath(); waveCtx.arc(px, py, 3, 0, Math.PI*2); waveCtx.fill();
+            });
+        }
+        init();
+    </script>
+</body>
+</html>

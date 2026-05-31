@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Executable Matrix Viewer - Annotated Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- Base and Layout --- */
+        :root {
+            --bg-color: #f4f7fa; --panel-bg: #ffffff; --border-color: #e2e8f0;
+            --text-primary: #1a202c; --text-secondary: #4a5568;
+            --accent-color: #4299e1; --accent-color-hover: #3182ce;
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 13px;
+        }
+
+        body {
+            font-family: var(--font-family); margin: 0; padding: 0;
+            background-color: var(--bg-color); color: var(--text-primary);
+            display: flex; justify-content: center; align-items: flex-start;
+            height: 100vh; overflow: hidden;
+        }
+
+        .container {
+            display: flex; flex-direction: row; background-color: var(--panel-bg);
+            border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.07), 0 10px 10px -5px rgba(0,0,0,0.04);
+            overflow: hidden; width: 100%; max-width: 1600px; margin: 16px; height: calc(100vh - 32px);
+        }
+
+        /* --- Controls Panel --- */
+        .controls { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); }
+        .controls-header { padding: 16px 20px; border-bottom: 1px solid var(--border-color); }
+        .controls-header h1 { font-size: 1.25rem; margin: 0 0 6px 0; font-weight: 700; }
+        .controls-header p { margin: 0; color: var(--text-secondary); font-size: 0.85rem; }
+        .controls-body { padding: 16px 20px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 14px; }
+
+        /* --- Display Panel --- */
+        .display { flex-grow: 1; padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+        
+        .display-header { 
+            display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; 
+            padding-bottom: 12px; border-bottom: 1px solid var(--border-color); 
+        }
+        .display-header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 16px; }
+        .display-header h2 { font-size: 1.15rem; margin: 0; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+        
+        .display-header-controls { display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 12px; }
+
+        .canvas-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; overflow: hidden; background-color: #edf2f7; border-radius: 8px; position: relative; }
+        #fractalCanvas { background-color: #333333; width: 100%; height: 100%; cursor: crosshair; }
+
+        /* --- UI Components --- */
+        label, h3 { font-weight: 600; color: var(--text-primary); margin-bottom: 6px; font-size: 0.85rem; display: block; }
+        .input-group { display: flex; flex-direction: column; }
+        input[type="file"] { width: 100%; padding: 8px; border: 1px dashed var(--border-color); border-radius: 6px; background-color: #f9fafb; cursor: pointer; box-sizing: border-box; }
+        select { padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; background-color: #fff; font-family: var(--font-family); cursor: pointer; font-size: 0.85rem; }
+
+        .checkbox-container { display: flex; align-items: center; cursor: pointer; font-size: 0.85rem; color: var(--text-secondary); user-select: none; margin-bottom: 6px; flex-grow: 1; }
+        .checkbox-container input[type="checkbox"] { display: none; }
+        .checkmark { height: 16px; width: 16px; background-color: #fff; border: 2px solid var(--border-color); border-radius: 4px; margin-right: 8px; transition: all 0.2s; position: relative; }
+        .checkbox-container:hover .checkmark { border-color: var(--accent-color); }
+        .checkbox-container input[type="checkbox"]:checked ~ .checkmark { background-color: var(--accent-color); border-color: var(--accent-color); }
+        .checkmark:after { content: ""; position: absolute; display: none; left: 4px; top: 1px; width: 3px; height: 8px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+        .checkbox-container input[type="checkbox"]:checked ~ .checkmark:after { display: block; }
+
+        input[type="color"] { -webkit-appearance: none; border: none; width: 20px; height: 20px; border-radius: 4px; cursor: pointer; padding: 0; margin-left: 8px; margin-right: 10px; background: none; }
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: 1px solid rgba(0,0,0,0.2); border-radius: 4px; }
+        
+        input[type="range"] { width: 100%; cursor: pointer; }
+
+        .legend-box { display: flex; flex-direction: column; gap: 6px; background: #f9fafb; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .channel-row { display: flex; align-items: center; }
+        .info-section p, .status-section p { margin: 0; padding: 8px 12px; background-color: #f4f7fa; border-radius: 6px; font-size: 0.8rem; color: var(--text-secondary); word-break: break-all; }
+
+        .action-btn { padding: 8px 14px; font-size: 0.85rem; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: background-color 0.2s, transform 0.1s; background-color: #fff; color: var(--text-primary); border: 1px solid var(--border-color); }
+        .action-btn:active { transform: scale(0.98); }
+        .action-btn:hover:not(.primary) { background-color: #f9fafb; }
+        .action-btn.primary { background-color: var(--accent-color); color: #fff; border-color: var(--accent-color); }
+        .action-btn.primary:hover { background-color: var(--accent-color-hover); }
+
+        .zoom-controls { display: flex; align-items: center; gap: 6px; }
+        .zoom-controls span { font-size: 0.85rem; color: var(--text-secondary); font-weight: 500; width: 170px; display: inline-block; }
+        .zoom-btn, .zoom-presets button { padding: 6px 12px; border: 1px solid var(--border-color); background-color: #fff; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+        .zoom-btn:hover, .zoom-presets button:hover { background-color: #f9fafb; }
+        .zoom-presets { display: flex; gap: 4px; margin-left: 6px; }
+        .export-group { display: flex; gap: 8px; align-items: center; }
+
+        .dna-only { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="controls-header">
+                <h1>Universal Matrix</h1>
+                <p>Multi-State Annotated Engine</p>
+            </div>
+            <div class="controls-body">
+                <div class="input-group">
+                    <label for="parseModeSelect">Parsing Engine</label>
+                    <select id="parseModeSelect">
+                        <option value="binary">Artificial Binary (4-State)</option>
+                        <option value="dna">Biological Sequence (5-State)</option>
+                    </select>
+                </div>
+                
+                <div class="input-group">
+                    <label for="renderModeSelect">Render Engine</label>
+                    <select id="renderModeSelect">
+                        <option value="density">Smooth (Perfect Density)</option>
+                        <option value="aliased">Structural (Aliased Resonance)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="contrastSlider">Signal Contrast Expansion: <span id="contrastVal">1.0x</span></label>
+                    <input type="range" id="contrastSlider" min="1" max="10" step="0.1" value="1">
+                </div>
+
+                <div class="input-group">
+                    <label class="checkbox-container" style="margin-top: 4px;">
+                        <input type="checkbox" id="showAnnotationsToggle" checked>
+                        <span class="checkmark"></span> Overlay Structural Grid
+                    </label>
+                </div>
+
+                <div class="input-group">
+                    <label class="checkbox-container" style="margin-top: 4px;">
+                        <input type="checkbox" id="showSymmetryToggle">
+                        <span class="checkmark"></span> Show Line of Symmetry
+                    </label>
+                </div>
+
+                <div class="input-group">
+                    <label for="dataFile">Upload Huge File (Unrestricted Size)</label>
+                    <input type="file" id="dataFile">
+                </div>
+
+                <div class="legend-box" style="margin-bottom: 14px;">
+                    <h3>Bookmarks</h3>
+                    <div style="display: flex; gap: 4px; margin-bottom: 8px;">
+                        <input type="text" id="bookmarkNameInput" placeholder="Name (e.g., Anomaly A)..." style="flex-grow: 1; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-family: var(--font-family); font-size: 0.8rem;">
+                        <button id="addBookmarkBtn" class="action-btn primary">Add</button>
+                    </div>
+                    <div id="bookmarkList" style="display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; margin-bottom: 8px;">
+                        <span style="font-size:0.8rem;color:var(--text-secondary);">No bookmarks saved.</span>
+                    </div>
+                    <div style="display: flex; gap: 4px;">
+                        <button id="exportBookmarksBtn" class="action-btn" style="flex: 1; font-size: 0.75rem;">Export .json</button>
+                        <label class="action-btn" style="flex: 1; text-align: center; cursor: pointer; font-size: 0.75rem;">
+                            Import .json
+                            <input type="file" id="importBookmarksFile" accept=".json" style="display: none;">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="legend-box">
+                    <h3>Channel Isolation & Colors</h3>
+                    <div class="channel-row">
+                        <label class="checkbox-container"><input type="checkbox" id="toggle0" class="channel-toggle" checked><span class="checkmark"></span> Ch 0 (A / 00)</label>
+                        <input type="color" id="colorPicker0" class="color-picker" value="#000000">
+                    </div>
+                    <div class="channel-row">
+                        <label class="checkbox-container"><input type="checkbox" id="toggle1" class="channel-toggle" checked><span class="checkmark"></span> Ch 1 (C / 01)</label>
+                        <input type="color" id="colorPicker1" class="color-picker" value="#ff0000">
+                    </div>
+                    <div class="channel-row">
+                        <label class="checkbox-container"><input type="checkbox" id="toggle2" class="channel-toggle" checked><span class="checkmark"></span> Ch 2 (G / 10)</label>
+                        <input type="color" id="colorPicker2" class="color-picker" value="#00ff00">
+                    </div>
+                    <div class="channel-row">
+                        <label class="checkbox-container"><input type="checkbox" id="toggle3" class="channel-toggle" checked><span class="checkmark"></span> Ch 3 (T / 11)</label>
+                        <input type="color" id="colorPicker3" class="color-picker" value="#0000ff">
+                    </div>
+                    <div class="channel-row dna-only">
+                        <label class="checkbox-container"><input type="checkbox" id="toggle4" class="channel-toggle" checked><span class="checkmark"></span> Ch 4 (N / Gaps)</label>
+                        <input type="color" id="colorPicker4" class="color-picker" value="#ffffff">
+                    </div>
+                </div>
+                 <div class="info-section">
+                    <p id="sequenceLengthLabel">Sequence Length: 0 units</p>
+                    <p id="matrixSizeLabel">Virtual Matrix: 0 x 0</p>
+                    <p id="annotationCountLabel" class="dna-only">Annotations Found: 0</p>
+                </div>
+                <div class="status-section"><p id="statusLabel">Status: Waiting for file...</p></div>
+            </div>
+        </div>
+
+        <div class="display">
+             <div class="display-header">
+                <div class="display-header-top">
+                    <h2 id="imageTitleLabel">Viewport View</h2>
+                    <div id="activeAnnotationLabel" class="dna-only" style="display: flex; flex-direction: column; gap: 4px; flex-grow: 1; text-align: left; font-size: 0.8rem; color: var(--text-secondary); background: #f4f7fa; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); overflow: hidden; white-space: nowrap; min-width: 200px;">
+                        <div id="annXLabel" style="overflow: hidden; text-overflow: ellipsis;"><strong>X:</strong> Hover over matrix to identify</div>
+                        <div id="annYLabel" style="overflow: hidden; text-overflow: ellipsis;"><strong>Y:</strong> Hover over matrix to identify</div>
+                    </div>
+                </div>
+                <div class="display-header-controls">
+                    <div class="zoom-controls">
+                        <span id="zoomLabel">Zoom: 1x (100%)</span>
+                        <button id="zoomOutBtn" class="zoom-btn">Zoom Out</button>
+                        <button id="zoomInBtn" class="zoom-btn">Zoom In</button>
+                        <div class="zoom-presets">
+                            <button id="zoom100Btn">1:1</button>
+                            <button id="zoomFitBtn">Fit</button>
+                        </div>
+                    </div>
+                    <div class="export-group">
+                        <select id="exportScaleSelect">
+                            <optgroup label="Viewport"><option value="viewport">Viewport View</option></optgroup>
+                            <optgroup label="Fixed Bounds (Streaming)">
+                                <option value="fixed_1024">Fixed 1024x1024</option>
+                                <option value="fixed_2048">Fixed 2048x2048</option>
+                                <option value="fixed_4096">Fixed 4096x4096</option>
+                                <option value="custom">Custom Size...</option>
+                            </optgroup>
+                        </select>
+                        <button id="exportImageButton" class="action-btn primary">Export</button>
+                    </div>
+                </div>
+            </div>
+            <div class="canvas-container" id="canvasContainer"><canvas id="fractalCanvas"></canvas></div>
+        </div>
+    </div>
+
+    <script>
+        const App = {
+            rawFile: null, 
+            dataFile: null, sequenceLength: 0, isBinaryMode: true, numStates: 4,
+            lods: { density: {}, aliased: {} }, MIN_LOD_LEVEL: 8, 
+            annotations: [],
+            bookmarks: [],
+            zoomLevel: 0, panOffsetX: 0.0, panOffsetY: 0.0,
+            isPanning: false, panStartX: 0, panStartY: 0, panStartOffsetX: 0, panStartOffsetY: 0,
+            MAX_ZOOM_LEVEL: 6, MIN_ZOOM_LEVEL: -40,
+            colorLUT: new Float32Array(36 * 3), isRendering: false, renderPending: false,
+            PURE_COLORS: [
+                [0, 0, 0], [255, 255, 255], [255, 255, 255], [0, 0, 0], [255, 255, 255]
+            ],
+            contrastPivot: [64, 64, 64], 
+
+            init() {
+                this.canvas = document.getElementById('fractalCanvas');
+                this.ctx = this.canvas.getContext('2d', { alpha: false });
+                this.container = document.getElementById('canvasContainer');
+                this.updateModeUI(); this.syncColorsFromUI(); this.precomputeLUT(0); this.bindEvents(); this.onResize();
+            },
+
+            hexToRgb(hex) {
+                const bigint = parseInt(hex.substring(1), 16);
+                return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
+            },
+
+            syncColorsFromUI() {
+                for(let i=0; i<5; i++) {
+                    const el = document.getElementById(`colorPicker${i}`);
+                    if(el) this.PURE_COLORS[i] = this.hexToRgb(el.value);
+                }
+                this.updateContrastPivot();
+            },
+
+            updateContrastPivot() {
+                let pr = 0, pg = 0, pb = 0, count = 0;
+                for(let i = 0; i < 4; i++) {
+                    pr += this.PURE_COLORS[i][0]; pg += this.PURE_COLORS[i][1]; pb += this.PURE_COLORS[i][2]; count++;
+                }
+                this.contrastPivot = [pr / count, pg / count, pb / count];
+            },
+
+            updateModeUI() {
+                this.isBinaryMode = document.getElementById('parseModeSelect').value === 'binary';
+                this.numStates = this.isBinaryMode ? 4 : 5;
+                document.querySelectorAll('.dna-only').forEach(el => {
+                    el.style.display = this.isBinaryMode ? 'none' : 'block';
+                });
+                document.getElementById('annotationCountLabel').style.display = this.isBinaryMode ? 'none' : 'block';
+                
+                const activeLabel = document.getElementById('activeAnnotationLabel');
+                if (activeLabel) activeLabel.style.display = this.isBinaryMode ? 'none' : 'flex';
+                this.updateContrastPivot();
+            },
+
+            precomputeLUT(firstVal) {
+                const toggles = [];
+                for(let i=0; i<this.numStates; i++) {
+                    toggles.push(document.getElementById(`toggle${i}`).checked);
+                }
+
+                for (let valR = 0; valR < this.numStates; valR++) {
+                    for (let valC = 0; valC < this.numStates; valC++) {
+                        let rSum = 0, gSum = 0, bSum = 0, activeCount = 0;
+                        
+                        for(let t = 0; t < this.numStates; t++) {
+                            if (toggles[t] && ((valC === t) ^ (valR === t) ^ (firstVal === t))) {
+                                rSum += this.PURE_COLORS[t][0]; gSum += this.PURE_COLORS[t][1]; bSum += this.PURE_COLORS[t][2]; activeCount++;
+                            }
+                        }
+                        
+                        const idx = (valR * this.numStates + valC) * 3;
+                        if (activeCount === 0) {
+                            this.colorLUT[idx] = 237; this.colorLUT[idx+1] = 242; this.colorLUT[idx+2] = 247;
+                        } else {
+                            this.colorLUT[idx] = rSum / activeCount; this.colorLUT[idx+1] = gSum / activeCount; this.colorLUT[idx+2] = bSum / activeCount;
+                        }
+                    }
+                }
+            },
+
+            bindEvents() {
+                document.getElementById('dataFile').addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.rawFile = e.target.files[0];
+                        this.processFile();
+                    }
+                });
+                
+                document.getElementById('parseModeSelect').addEventListener('change', () => { 
+                    this.updateModeUI(); this.syncColorsFromUI(); this.precomputeLUT(0); 
+                    if (this.rawFile) this.processFile(); 
+                    else this.triggerRender();
+                });
+                
+                document.getElementById('renderModeSelect').addEventListener('change', () => this.triggerRender());
+                document.getElementById('showAnnotationsToggle').addEventListener('change', () => this.triggerRender());
+                document.getElementById('showSymmetryToggle').addEventListener('change', () => this.triggerRender());
+                
+                document.getElementById('addBookmarkBtn').addEventListener('click', () => this.addBookmark());
+                document.getElementById('exportBookmarksBtn').addEventListener('click', () => this.exportBookmarks());
+                document.getElementById('importBookmarksFile').addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.importBookmarks(e.target.files[0]);
+                        e.target.value = ''; 
+                    }
+                });
+                
+                document.getElementById('contrastSlider').addEventListener('input', (e) => {
+                    document.getElementById('contrastVal').textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+                    this.triggerRender();
+                });
+                
+                document.querySelectorAll('.channel-toggle, .color-picker').forEach(el => {
+                    el.addEventListener('change', () => { this.syncColorsFromUI(); this.precomputeLUT(0); this.triggerRender(); });
+                });
+                
+                this.canvas.addEventListener('mousedown', (e) => this.onPanStart(e));
+                window.addEventListener('mousemove', (e) => this.onPanMove(e));
+                this.canvas.addEventListener('mousemove', (e) => this.onCanvasMouseMove(e));
+                window.addEventListener('mouseup', () => this.onPanEnd());
+                
+                this.canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.setZoomLevel(this.zoomLevel + (e.deltaY < 0 ? 1 : -1), e.clientX - rect.left, e.clientY - rect.top);
+                });
+
+                document.getElementById('zoomInBtn').addEventListener('click', () => this.setZoomLevel(this.zoomLevel + 1));
+                document.getElementById('zoomOutBtn').addEventListener('click', () => this.setZoomLevel(this.zoomLevel - 1));
+                document.getElementById('zoom100Btn').addEventListener('click', () => this.setZoomLevel(0));
+                document.getElementById('zoomFitBtn').addEventListener('click', () => this.zoomFit());
+                document.getElementById('exportImageButton').addEventListener('click', () => this.exportImage());
+
+                new ResizeObserver(() => this.onResize()).observe(this.container);
+            },
+
+            setStatus(msg) { document.getElementById('statusLabel').textContent = `Status: ${msg}`; },
+
+            async processFile() {
+                if (!this.rawFile) return;
+
+                this.updateModeUI();
+                this.lods = { density: {}, aliased: {} };
+                this.annotations = [];
+                
+                this.loadBookmarksLocal();
+
+                if (!this.isBinaryMode) {
+                    this.setStatus("Sanitizing biological sequence (removing FASTA headers & line breaks)...");
+                    const { cleanBlob, annotations } = await this.sanitizeDNAFile(this.rawFile);
+                    this.dataFile = cleanBlob;
+                    this.sequenceLength = cleanBlob.size;
+                    this.annotations = annotations;
+                } else {
+                    this.dataFile = this.rawFile;
+                    this.sequenceLength = this.rawFile.size * 4;
+                    this.annotations = [];
+                }
+                
+                document.getElementById('sequenceLengthLabel').textContent = `Sequence Length: ${this.sequenceLength.toLocaleString()} units`;
+                document.getElementById('matrixSizeLabel').textContent = `Virtual Matrix: ${this.sequenceLength.toLocaleString()} x ${this.sequenceLength.toLocaleString()}`;
+                document.getElementById('annotationCountLabel').textContent = `Annotations Found: ${this.annotations.length}`;
+                
+                this.zoomFit();
+                this.initLODWorker(this.dataFile);
+            },
+
+            sanitizeDNAFile(rawFile) {
+                return new Promise((resolve) => {
+                    const workerCode = `
+                        self.onmessage = async function(e) {
+                            const { file } = e.data;
+                            const CHUNK_SIZE = 1024 * 1024 * 16; 
+                            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                            
+                            let cleanChunks = [];
+                            let annotations = [];
+                            let isHeader = false;
+                            let headerText = "";
+                            let cleanIndex = 0;
+
+                            for (let c = 0; c < totalChunks; c++) {
+                                const startByte = c * CHUNK_SIZE;
+                                const endByte = Math.min(startByte + CHUNK_SIZE, file.size);
+                                const blob = file.slice(startByte, endByte);
+                                const buffer = await blob.arrayBuffer();
+                                const bytes = new Uint8Array(buffer);
+                                
+                                let cleanBytes = new Uint8Array(bytes.length);
+                                let cleanPtr = 0;
+
+                                for(let i=0; i<bytes.length; i++) {
+                                    const b = bytes[i];
+                                    if (isHeader) {
+                                        if (b === 10 || b === 13) {
+                                            isHeader = false;
+                                            if (headerText.length > 1) annotations.push({ index: cleanIndex, text: headerText });
+                                        } else if (headerText.length < 80) {
+                                            headerText += String.fromCharCode(b);
+                                        }
+                                    } else {
+                                        if (b === 62) { // '>'
+                                            isHeader = true; 
+                                            headerText = ">";
+                                        } else if (b > 32) { // NOT a space, tab, LF, or CR
+                                            cleanBytes[cleanPtr++] = b;
+                                            cleanIndex++;
+                                        }
+                                    }
+                                }
+                                
+                                if (cleanPtr > 0) {
+                                    cleanChunks.push(cleanBytes.slice(0, cleanPtr));
+                                }
+                                
+                                if (c % 5 === 0 || c === totalChunks - 1) {
+                                    self.postMessage({ type: 'progress', percent: Math.round(((c + 1) / totalChunks) * 100) });
+                                }
+                            }
+                            
+                            self.postMessage({ type: 'done', cleanChunks: cleanChunks, annotations: annotations });
+                        };
+                    `;
+                    const blob = new Blob([workerCode], { type: 'application/javascript' });
+                    const worker = new Worker(URL.createObjectURL(blob));
+
+                    worker.onmessage = (e) => {
+                        if (e.data.type === 'progress') {
+                            this.setStatus(`Sanitizing FASTA... ${e.data.percent}%`);
+                        } else if (e.data.type === 'done') {
+                            const cleanBlob = new Blob(e.data.cleanChunks);
+                            resolve({ cleanBlob, annotations: e.data.annotations });
+                            worker.terminate();
+                        }
+                    };
+                    worker.postMessage({ file: rawFile });
+                });
+            },
+
+            initLODWorker(file) {
+                const workerCode = `
+                    self.onmessage = async function(e) {
+                        const { file, minLod, isBinaryMode, numStates } = e.data;
+                        const seqLen = isBinaryMode ? file.size * 4 : file.size;
+                        
+                        let maxLod = minLod;
+                        while ((seqLen / Math.pow(2, maxLod)) > 2) { maxLod++; }
+
+                        const minStep = Math.pow(2, minLod);
+                        const minLodCount = Math.ceil(seqLen / minStep);
+                        const baseLodRaw = new Uint32Array(minLodCount * numStates); 
+                        
+                        const aliasedLods = {};
+                        for(let k = minLod; k <= maxLod; k++) {
+                            aliasedLods[k] = new Uint8Array(Math.ceil(seqLen / Math.pow(2, k)));
+                        }
+
+                        const byteLUT0 = new Uint8Array(256);
+                        const byteLUT1 = new Uint8Array(256);
+                        const byteLUT2 = new Uint8Array(256);
+                        const byteLUT3 = new Uint8Array(256);
+                        
+                        if (isBinaryMode) {
+                            for(let i=0; i<256; i++) {
+                                let c0=0, c1=0, c2=0, c3=0;
+                                for(let bit=0; bit<4; bit++) {
+                                    const val = (i >> (6 - bit*2)) & 3;
+                                    if(val===0) c0++; else if(val===1) c1++; else if(val===2) c2++; else c3++;
+                                }
+                                byteLUT0[i]=c0; byteLUT1[i]=c1; byteLUT2[i]=c2; byteLUT3[i]=c3;
+                            }
+                        }
+                        
+                        const dnaLUT = new Uint8Array(256);
+                        for(let i=0; i<256; i++) dnaLUT[i] = 255; 
+                        dnaLUT[65] = 0; dnaLUT[97] = 0; // A
+                        dnaLUT[67] = 1; dnaLUT[99] = 1; // C
+                        dnaLUT[71] = 2; dnaLUT[103] = 2; // G
+                        dnaLUT[84] = 3; dnaLUT[116] = 3; // T
+                        dnaLUT[78] = 4; dnaLUT[110] = 4; // N
+
+                        const CHUNK_SIZE = 1024 * 1024 * 16; 
+                        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                        const unitsPerByte = isBinaryMode ? 4 : 1;
+                        const bytesPerBlock = minStep / unitsPerByte; 
+
+                        for (let c = 0; c < totalChunks; c++) {
+                            const startByte = c * CHUNK_SIZE;
+                            const endByte = Math.min(startByte + CHUNK_SIZE, file.size);
+                            const blob = file.slice(startByte, endByte);
+                            const buffer = await blob.arrayBuffer();
+                            const bytes = new Uint8Array(buffer);
+                            
+                            const startUnit = startByte * unitsPerByte;
+                            const endUnit = endByte * unitsPerByte - 1;
+
+                            let byteIdx = 0;
+                            let blockIdx = Math.floor(startUnit / minStep);
+                            
+                            if (isBinaryMode) {
+                                while (byteIdx < bytes.length) {
+                                    let c0=0, c1=0, c2=0, c3=0;
+                                    const chunkEnd = Math.min(byteIdx + bytesPerBlock, bytes.length);
+                                    for (; byteIdx < chunkEnd; byteIdx++) {
+                                        const b = bytes[byteIdx];
+                                        c0 += byteLUT0[b]; c1 += byteLUT1[b]; c2 += byteLUT2[b]; c3 += byteLUT3[b];
+                                    }
+                                    if (blockIdx * numStates < baseLodRaw.length) {
+                                        baseLodRaw[blockIdx*numStates+0] += c0; baseLodRaw[blockIdx*numStates+1] += c1;
+                                        baseLodRaw[blockIdx*numStates+2] += c2; baseLodRaw[blockIdx*numStates+3] += c3;
+                                    }
+                                    blockIdx++;
+                                }
+                            } else {
+                                while (byteIdx < bytes.length) {
+                                    let counts = new Uint32Array(5);
+                                    const chunkEnd = Math.min(byteIdx + bytesPerBlock, bytes.length);
+                                    for (; byteIdx < chunkEnd; byteIdx++) {
+                                        const state = dnaLUT[bytes[byteIdx]];
+                                        if (state !== 255) counts[state]++;
+                                    }
+                                    if (blockIdx * numStates < baseLodRaw.length) {
+                                        for(let i=0; i<5; i++) baseLodRaw[blockIdx*numStates+i] += counts[i];
+                                    }
+                                    blockIdx++;
+                                }
+                            }
+
+                            for(let k = minLod; k <= maxLod; k++) {
+                                const step = Math.pow(2, k);
+                                let firstI = Math.floor(startUnit / step);
+                                if (firstI < 0) firstI = 0;
+                                
+                                for (let i = firstI; ; i++) {
+                                    const blockStart = i * step;
+                                    if (blockStart > endUnit) break;
+                                    
+                                    const offset = Math.floor(((i * 0.618033988749895) % 1) * step);
+                                    const sampleU = blockStart + offset;
+                                    
+                                    if (sampleU >= startUnit && sampleU <= endUnit && sampleU < seqLen) {
+                                        if (isBinaryMode) {
+                                            const byteIndex = Math.floor((sampleU - startUnit) / 4);
+                                            const b = bytes[byteIndex];
+                                            aliasedLods[k][i] = (b >> (6 - ((sampleU % 4) * 2))) & 3;
+                                        } else {
+                                            const state = dnaLUT[bytes[sampleU - startUnit]];
+                                            aliasedLods[k][i] = state !== undefined ? state : 255;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (c % 2 === 0 || c === totalChunks - 1) {
+                                self.postMessage({ type: 'progress', percent: Math.round(((c + 1) / totalChunks) * 100) });
+                                await new Promise(r => setTimeout(r, 0)); 
+                            }
+                        }
+
+                        self.postMessage({ type: 'progress', percent: 99, status: 'Normalizing Mipmaps...' });
+
+                        const lodsRaw = { [minLod]: baseLodRaw };
+                        for(let k = minLod + 1; k <= maxLod; k++) {
+                            const prev = lodsRaw[k - 1];
+                            const currCount = Math.ceil(seqLen / Math.pow(2, k));
+                            const curr = new Uint32Array(currCount * numStates);
+                            for(let i = 0; i < prev.length / numStates; i++) {
+                                const currBlock = Math.floor(i / 2); 
+                                for(let s=0; s<numStates; s++) curr[currBlock * numStates + s] += prev[i * numStates + s];
+                            }
+                            lodsRaw[k] = curr;
+                        }
+
+                        const finalDensityLods = {};
+                        for(let k = minLod; k <= maxLod; k++) {
+                            const step = Math.pow(2, k);
+                            const raw = lodsRaw[k];
+                            const final = new Uint8Array(raw.length);
+                            for(let i=0; i<raw.length; i++) {
+                                final[i] = Math.round((raw[i] / step) * 255); 
+                            }
+                            finalDensityLods[k] = final;
+                        }
+                        
+                        self.postMessage({ type: 'done', densityLods: finalDensityLods, aliasedLods: aliasedLods });
+                    };
+                `;
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                const worker = new Worker(URL.createObjectURL(blob));
+
+                this.setStatus(`Building ${this.numStates}-State LOD Engine...`);
+                worker.onmessage = (e) => {
+                    if (e.data.type === 'progress') {
+                        if (e.data.status) this.setStatus(`${e.data.status}`);
+                        else this.setStatus(`Caching Memory LODs... ${e.data.percent}%`);
+                    }
+                    else if (e.data.type === 'done') {
+                        this.lods.density = e.data.densityLods; 
+                        this.lods.aliased = e.data.aliasedLods;
+                        this.setStatus("File Linked & Mipmaps Ready."); 
+                        this.triggerRender(); 
+                    }
+                };
+                worker.postMessage({ file: file, minLod: this.MIN_LOD_LEVEL, isBinaryMode: this.isBinaryMode, numStates: this.numStates });
+            },
+
+            async fetchDensityRange(startGlobal, zoomLevel, pixelCount) {
+                const result = new Uint8Array(pixelCount * this.numStates);
+                if (this.sequenceLength === 0 || !this.dataFile) return result;
+
+                const scale = Math.pow(2, zoomLevel);
+                const step = 1 / scale; 
+
+                if (zoomLevel < 0) {
+                    const k = Math.floor(Math.log2(step));
+                    if (k >= this.MIN_LOD_LEVEL && this.lods.density && this.lods.density[k]) {
+                        const lodArr = this.lods.density[k];
+                        const startLodIdx = Math.floor(startGlobal / Math.pow(2, k));
+                        for(let i = 0; i < pixelCount; i++) {
+                            const lodIdx = startLodIdx + i;
+                            if (lodIdx >= 0 && lodIdx * this.numStates < lodArr.length) {
+                                for(let s=0; s<this.numStates; s++) result[i*this.numStates+s] = lodArr[lodIdx*this.numStates+s];
+                            }
+                        }
+                        return result;
+                    }
+                }
+
+                const uStartTotal = Math.floor(Math.max(0, startGlobal));
+                const uEndTotal = Math.floor(Math.min(this.sequenceLength - 1, startGlobal + pixelCount * step));
+                if (uStartTotal > uEndTotal) return result;
+
+                const startByte = this.isBinaryMode ? Math.floor(uStartTotal / 4) : uStartTotal;
+                const endByte = this.isBinaryMode ? Math.floor(uEndTotal / 4) : uEndTotal;
+                const blob = this.dataFile.slice(startByte, endByte + 1);
+                const buffer = await blob.arrayBuffer();
+                const bytes = new Uint8Array(buffer);
+
+                const getVal = (u) => {
+                    if (this.isBinaryMode) {
+                        const byteIndex = Math.floor(u / 4) - startByte;
+                        const b = bytes[byteIndex];
+                        return b !== undefined ? ((b >> (6 - ((u % 4) * 2))) & 3) : 255;
+                    } else {
+                        const idx = u - startByte;
+                        if (idx >= 0 && idx < bytes.length) {
+                            const c = bytes[idx];
+                            if (c===65 || c===97) return 0; 
+                            if (c===67 || c===99) return 1; 
+                            if (c===71 || c===103) return 2; 
+                            if (c===84 || c===116) return 3; 
+                            if (c===78 || c===110) return 4; 
+                            return 255; 
+                        }
+                        return 255;
+                    }
+                };
+
+                if (scale >= 1.0) {
+                    for (let i = 0; i < pixelCount; i++) {
+                        const u = Math.floor(startGlobal + i * step);
+                        if (u >= 0 && u < this.sequenceLength) {
+                            const val = getVal(u);
+                            if (val !== 255) result[i * this.numStates + val] = 255;
+                        }
+                    }
+                } else {
+                    for (let i = 0; i < pixelCount; i++) {
+                        const uStart = Math.max(0, Math.floor(startGlobal + i * step));
+                        const uEnd = Math.min(this.sequenceLength, Math.floor(startGlobal + (i + 1) * step));
+                        const actualStep = uEnd - uStart;
+                        if (actualStep <= 0) continue;
+
+                        const maxSamples = 256; 
+                        const uStep = Math.max(1, Math.floor(actualStep / maxSamples));
+                        
+                        let counts = new Uint32Array(this.numStates); let total = 0;
+                        for (let u = uStart; u < uEnd; u += uStep) {
+                            const val = getVal(u);
+                            if (val !== 255) { counts[val]++; total++; }
+                        }
+                        if (total > 0) {
+                            for(let s=0; s<this.numStates; s++) result[i*this.numStates+s] = Math.round((counts[s]/total)*255);
+                        }
+                    }
+                }
+                return result;
+            },
+
+            async fetchAliasedRange(startGlobal, zoomLevel, pixelCount) {
+                const result = new Uint8Array(pixelCount);
+                if (this.sequenceLength === 0 || !this.dataFile) return result;
+
+                const scale = Math.pow(2, zoomLevel);
+                let step = 1 / scale; 
+
+                if (zoomLevel < 0) {
+                    const k = Math.floor(Math.log2(step));
+                    if (k >= this.MIN_LOD_LEVEL && this.lods.aliased && this.lods.aliased[k]) {
+                        const lodArr = this.lods.aliased[k];
+                        for(let j = 0; j < pixelCount; j++) {
+                            const globalUnit = startGlobal + j * step;
+                            const i = Math.floor(globalUnit / step); 
+                            if (i >= 0 && i < lodArr.length) result[j] = lodArr[i];
+                            else result[j] = 255;
+                        }
+                        return result;
+                    }
+                }
+
+                const uStartTotal = Math.floor(Math.max(0, startGlobal));
+                const uEndTotal = Math.floor(Math.min(this.sequenceLength - 1, startGlobal + pixelCount * step));
+                
+                if (uStartTotal > uEndTotal) {
+                    result.fill(255);
+                    return result;
+                }
+
+                const startByte = this.isBinaryMode ? Math.floor(uStartTotal / 4) : uStartTotal;
+                const endByte = this.isBinaryMode ? Math.floor(uEndTotal / 4) : uEndTotal;
+
+                const blob = this.dataFile.slice(startByte, endByte + 1);
+                const buffer = await blob.arrayBuffer();
+                const bytes = new Uint8Array(buffer);
+
+                for(let j = 0; j < pixelCount; j++) {
+                    const globalUnit = startGlobal + j * step;
+                    let u;
+                    if (scale < 1.0) {
+                        const i = Math.floor(globalUnit / step);
+                        const offset = Math.floor(((i * 0.618033988749895) % 1) * step);
+                        u = Math.floor(i * step + offset);
+                    } else {
+                        u = Math.floor(globalUnit); 
+                    }
+                    
+                    if (u >= 0 && u < this.sequenceLength) {
+                        if (this.isBinaryMode) {
+                            const byteIndex = Math.floor(u / 4) - startByte;
+                            const b = bytes[byteIndex];
+                            if (b !== undefined) result[j] = (b >> (6 - ((u % 4) * 2))) & 3;
+                            else result[j] = 255;
+                        } else {
+                            const idx = u - startByte;
+                            if (idx >= 0 && idx < bytes.length) {
+                                const c = bytes[idx];
+                                if (c===65 || c===97) result[j] = 0; 
+                                else if (c===67 || c===99) result[j] = 1; 
+                                else if (c===71 || c===103) result[j] = 2; 
+                                else if (c===84 || c===116) result[j] = 3; 
+                                else if (c===78 || c===110) result[j] = 4; 
+                                else result[j] = 255;
+                            } else { result[j] = 255; }
+                        }
+                    } else { result[j] = 255; }
+                }
+                return result;
+            },
+
+            setZoomLevel(newLevel, pivotX, pivotY) {
+                if(!this.dataFile) return;
+                newLevel = Math.max(this.MIN_ZOOM_LEVEL, Math.min(newLevel, this.MAX_ZOOM_LEVEL));
+                if (newLevel === this.zoomLevel) return;
+
+                const oldScale = Math.pow(2, this.zoomLevel); const newScale = Math.pow(2, newLevel);
+                pivotX = pivotX !== undefined ? pivotX : this.canvas.width / 2; pivotY = pivotY !== undefined ? pivotY : this.canvas.height / 2;
+                
+                this.panOffsetX = (this.panOffsetX + pivotX / oldScale) - pivotX / newScale;
+                this.panOffsetY = (this.panOffsetY + pivotY / oldScale) - pivotY / newScale;
+                this.zoomLevel = newLevel;
+
+                this.updateUI(); this.triggerRender();
+            },
+
+            zoomFit() {
+                if (this.sequenceLength === 0) return;
+                const minScale = Math.min(this.canvas.width / this.sequenceLength, this.canvas.height / this.sequenceLength);
+                const scale = Math.pow(2, Math.floor(Math.log2(minScale)));
+                
+                this.zoomLevel = Math.floor(Math.log2(minScale));
+                this.panOffsetX = (this.sequenceLength - this.canvas.width / scale) / 2;
+                this.panOffsetY = (this.sequenceLength - this.canvas.height / scale) / 2;
+                this.updateUI(); this.triggerRender();
+            },
+
+            onPanStart(e) { if(!this.dataFile) return; this.isPanning = true; this.panStartX = e.clientX; this.panStartY = e.clientY; this.panStartOffsetX = this.panOffsetX; this.panStartOffsetY = this.panOffsetY; this.canvas.style.cursor = 'grabbing'; },
+            onPanMove(e) { if (!this.isPanning) return; const scale = Math.pow(2, this.zoomLevel); this.panOffsetX = this.panStartOffsetX - ((e.clientX - this.panStartX) / scale); this.panOffsetY = this.panStartOffsetY - ((e.clientY - this.panStartY) / scale); this.triggerRender(); },
+            onPanEnd() { this.isPanning = false; this.canvas.style.cursor = 'crosshair'; },
+            
+            onCanvasMouseMove(e) {
+                if (this.isBinaryMode || this.annotations.length === 0) return;
+                const rect = this.canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                const scale = Math.pow(2, this.zoomLevel);
+                const globalX = this.panOffsetX + mouseX / scale;
+                const globalY = this.panOffsetY + mouseY / scale;
+
+                const annX = this.findAnnotationForUnit(globalX);
+                const annY = this.findAnnotationForUnit(globalY);
+
+                const labelX = document.getElementById('annXLabel');
+                const labelY = document.getElementById('annYLabel');
+                
+                if (labelX && labelY) {
+                    labelX.innerHTML = `<strong>X:</strong> ${annX ? annX.text.trim() : 'N/A'}`;
+                    labelY.innerHTML = `<strong>Y:</strong> ${annY ? annY.text.trim() : 'N/A'}`;
+                }
+            },
+
+            findAnnotationForUnit(u) {
+                if (!this.annotations || this.annotations.length === 0) return null;
+                let best = this.annotations[0];
+                if (u < best.index) return null;
+                
+                let low = 0, high = this.annotations.length - 1;
+                while (low <= high) {
+                    let mid = Math.floor((low + high) / 2);
+                    if (this.annotations[mid].index <= u) {
+                        best = this.annotations[mid];
+                        low = mid + 1;
+                    } else {
+                        high = mid - 1;
+                    }
+                }
+                return best;
+            },
+
+            onResize() { const rect = this.container.getBoundingClientRect(); this.canvas.width = Math.floor(rect.width); this.canvas.height = Math.floor(rect.height); this.triggerRender(); },
+            updateUI() { const scale = Math.pow(2, this.zoomLevel); document.getElementById('zoomLabel').textContent = this.zoomLevel >= 0 ? `Zoom: ${scale}x (${scale * 100}%)` : `Zoom: 1/${1/scale}x (${(scale * 100).toFixed(6)}%)`; },
+
+            renderDensityPixels(imgData, width, height, rowDist, colDist, contrast) {
+                const data = imgData.data; const lut = this.colorLUT; let i = 0;
+
+                let pR = this.contrastPivot[0], pG = this.contrastPivot[1], pB = this.contrastPivot[2];
+
+                if (contrast !== 1.0) {
+                    const avgRow = new Float32Array(4);
+                    let validRows = 0;
+                    for (let y = 0; y < height; y++) {
+                        const offset = y * this.numStates;
+                        let rowSum = 0;
+                        for (let s = 0; s < 4; s++) rowSum += rowDist[offset + s];
+                        if (rowSum > 0) {
+                            for (let s = 0; s < 4; s++) avgRow[s] += rowDist[offset + s] / rowSum;
+                            validRows++;
+                        }
+                    }
+                    if (validRows > 0) for (let s = 0; s < 4; s++) avgRow[s] /= validRows;
+
+                    const avgCol = new Float32Array(4);
+                    let validCols = 0;
+                    for (let x = 0; x < width; x++) {
+                        const offset = x * this.numStates;
+                        let colSum = 0;
+                        for (let s = 0; s < 4; s++) colSum += colDist[offset + s];
+                        if (colSum > 0) {
+                            for (let s = 0; s < 4; s++) avgCol[s] += colDist[offset + s] / colSum;
+                            validCols++;
+                        }
+                    }
+                    if (validCols > 0) for (let s = 0; s < 4; s++) avgCol[s] /= validCols;
+
+                    let dynR = 0, dynG = 0, dynB = 0, weightSum = 0;
+                    for (let rState = 0; rState < 4; rState++) {
+                        for (let cState = 0; cState < 4; cState++) {
+                            const weight = avgRow[rState] * avgCol[cState];
+                            const lutIdx = (rState * this.numStates + cState) * 3;
+                            dynR += lut[lutIdx] * weight;
+                            dynG += lut[lutIdx + 1] * weight;
+                            dynB += lut[lutIdx + 2] * weight;
+                            weightSum += weight;
+                        }
+                    }
+                    if (weightSum > 0) { pR = dynR / weightSum; pG = dynG / weightSum; pB = dynB / weightSum; }
+                }
+
+                for (let y = 0; y < height; y++) {
+                    const rowOffset = y * this.numStates;
+                    for (let x = 0; x < width; x++) {
+                        const colOffset = x * this.numStates;
+                        
+                        let rStructSum = 0, gStructSum = 0, bStructSum = 0, structWeight = 0;
+                        let rGapSum = 0, gGapSum = 0, bGapSum = 0, gapWeight = 0;
+
+                        for (let rState = 0; rState < this.numStates; rState++) {
+                            const rProb = rowDist[rowOffset + rState];
+                            if (rProb === 0) continue;
+                            
+                            for (let cState = 0; cState < this.numStates; cState++) {
+                                const cProb = colDist[colOffset + cState];
+                                if (cProb === 0) continue;
+                                
+                                const weight = rProb * cProb; 
+                                const lutIdx = (rState * this.numStates + cState) * 3;
+                                
+                                if (!this.isBinaryMode && (rState === 4 || cState === 4)) {
+                                    rGapSum += lut[lutIdx] * weight; 
+                                    gGapSum += lut[lutIdx + 1] * weight; 
+                                    bGapSum += lut[lutIdx + 2] * weight;
+                                    gapWeight += weight;
+                                } else {
+                                    rStructSum += lut[lutIdx] * weight; 
+                                    gStructSum += lut[lutIdx + 1] * weight; 
+                                    bStructSum += lut[lutIdx + 2] * weight;
+                                    structWeight += weight;
+                                }
+                            }
+                        }
+
+                        if (structWeight > 0 || gapWeight > 0) {
+                            let finalR = 0, finalG = 0, finalB = 0;
+                            
+                            if (structWeight > 0) {
+                                let r = rStructSum / structWeight; 
+                                let g = gStructSum / structWeight; 
+                                let b = bStructSum / structWeight;
+                                
+                                if (contrast !== 1.0) {
+                                    r = Math.min(255, Math.max(0, (r - pR) * contrast + pR));
+                                    g = Math.min(255, Math.max(0, (g - pG) * contrast + pG));
+                                    b = Math.min(255, Math.max(0, (b - pB) * contrast + pB));
+                                }
+                                finalR = r; finalG = g; finalB = b;
+                            }
+                            
+                            if (gapWeight > 0) {
+                                const gapR = rGapSum / gapWeight;
+                                const gapG = gGapSum / gapWeight;
+                                const gapB = bGapSum / gapWeight;
+                                
+                                if (structWeight === 0) {
+                                    finalR = gapR; finalG = gapG; finalB = gapB;
+                                } else {
+                                    const totalWeight = structWeight + gapWeight;
+                                    const structRatio = structWeight / totalWeight;
+                                    const gapRatio = gapWeight / totalWeight;
+                                    
+                                    finalR = finalR * structRatio + gapR * gapRatio;
+                                    finalG = finalG * structRatio + gapG * gapRatio;
+                                    finalB = finalB * structRatio + gapB * gapRatio;
+                                }
+                            }
+                            
+                            data[i++] = finalR; data[i++] = finalG; data[i++] = finalB; data[i++] = 255;
+                        } else {
+                            data[i++] = 237; data[i++] = 242; data[i++] = 247; data[i++] = 255;
+                        }
+                    }
+                }
+            },
+
+            renderAliasedPixels(imgData, width, height, rowValues, colValues, isExport = false) {
+                const data = imgData.data; const lut = this.colorLUT; let i = 0;
+                for (let y = 0; y < height; y++) {
+                    const valR = rowValues[y];
+                    const rActive = isExport ? true : (Math.floor(this.panOffsetY + y / Math.pow(2, this.zoomLevel)) >= 0 && 
+                                     Math.floor(this.panOffsetY + y / Math.pow(2, this.zoomLevel)) < this.sequenceLength);
+                    for (let x = 0; x < width; x++) {
+                        const valC = colValues[x];
+                        const cActive = isExport ? true : (Math.floor(this.panOffsetX + x / Math.pow(2, this.zoomLevel)) >= 0 && 
+                                         Math.floor(this.panOffsetX + x / Math.pow(2, this.zoomLevel)) < this.sequenceLength);
+                        
+                        if (rActive && cActive && valR !== 255 && valC !== 255) {
+                            const idx = (valR * this.numStates + valC) * 3;
+                            data[i++] = lut[idx]; data[i++] = lut[idx + 1]; data[i++] = lut[idx + 2]; data[i++] = 255;
+                        } else {
+                            data[i++] = 237; data[i++] = 242; data[i++] = 247; data[i++] = 255;
+                        }
+                    }
+                }
+            },
+
+            drawAnnotations(cw, ch) {
+                const scale = Math.pow(2, this.zoomLevel);
+
+                // --- Symmetry Line Logic ---
+                if (document.getElementById('showSymmetryToggle').checked && this.sequenceLength > 0) {
+                    this.ctx.save();
+                    this.ctx.globalCompositeOperation = 'difference';
+                    this.ctx.strokeStyle = '#ffff00'; // Yellow for high contrast
+                    this.ctx.lineWidth = 1;
+                    this.ctx.beginPath();
+                    
+                    const startX = Math.floor((0 - this.panOffsetX) * scale) + 0.5;
+                    const startY = Math.floor((0 - this.panOffsetY) * scale) + 0.5;
+                    const endX = Math.floor((this.sequenceLength - this.panOffsetX) * scale) + 0.5;
+                    const endY = Math.floor((this.sequenceLength - this.panOffsetY) * scale) + 0.5;
+                    
+                    this.ctx.moveTo(startX, startY);
+                    this.ctx.lineTo(endX, endY);
+                    this.ctx.stroke();
+                    this.ctx.restore();
+                }
+
+                // --- Grid Annotation Logic ---
+                if (this.isBinaryMode || !document.getElementById('showAnnotationsToggle').checked) return;
+                if (!this.annotations || this.annotations.length === 0) return;
+
+                this.ctx.save();
+                this.ctx.globalCompositeOperation = 'difference';
+                this.ctx.strokeStyle = '#ffffff'; 
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+
+                for (const ann of this.annotations) {
+                    const x = Math.floor((ann.index - this.panOffsetX) * scale) + 0.5;
+                    const y = Math.floor((ann.index - this.panOffsetY) * scale) + 0.5;
+
+                    if (x >= 0 && x <= cw) { this.ctx.moveTo(x, 0); this.ctx.lineTo(x, ch); }
+                    if (y >= 0 && y <= ch) { this.ctx.moveTo(0, y); this.ctx.lineTo(cw, y); }
+                }
+                this.ctx.stroke();
+                this.ctx.restore();
+            },
+
+            triggerRender() { if (this.isRendering) { this.renderPending = true; return; } this.renderViewport(); },
+
+            async renderViewport() {
+                this.isRendering = true; const cw = this.canvas.width; const ch = this.canvas.height;
+                if (this.sequenceLength === 0 || cw === 0 || ch === 0) { this.ctx.fillStyle = "#edf2f7"; this.ctx.fillRect(0,0,cw,ch); this.isRendering = false; return; }
+
+                try {
+                    const mode = document.getElementById('renderModeSelect').value;
+                    const imgData = this.ctx.createImageData(cw, ch);
+                    
+                    if (mode === 'density') {
+                        const contrast = parseFloat(document.getElementById('contrastSlider').value);
+                        const rowDist = await this.fetchDensityRange(this.panOffsetY, this.zoomLevel, ch);
+                        const colDist = await this.fetchDensityRange(this.panOffsetX, this.zoomLevel, cw);
+                        this.renderDensityPixels(imgData, cw, ch, rowDist, colDist, contrast);
+                    } else {
+                        const rowVals = await this.fetchAliasedRange(this.panOffsetY, this.zoomLevel, ch);
+                        const colVals = await this.fetchAliasedRange(this.panOffsetX, this.zoomLevel, cw);
+                        this.renderAliasedPixels(imgData, cw, ch, rowVals, colVals, false);
+                    }
+                    
+                    this.ctx.putImageData(imgData, 0, 0);
+                    this.drawAnnotations(cw, ch);
+                } finally {
+                    this.isRendering = false; if (this.renderPending) { this.renderPending = false; this.renderViewport(); }
+                }
+            },
+
+            async exportImage() {
+                if (this.sequenceLength === 0) return;
+                const exportVal = document.getElementById('exportScaleSelect').value;
+                if (exportVal === "viewport") { this.triggerDownload(this.canvas, "matrix_viewport.png"); return; }
+
+                let exportSize;
+                if (exportVal === "custom") {
+                    const userInput = prompt("Enter custom export size in pixels (e.g., 8192):", "8192");
+                    if (!userInput) return; 
+                    
+                    exportSize = parseInt(userInput, 10);
+                    if (isNaN(exportSize) || exportSize <= 0) {
+                        alert("Please enter a valid positive number.");
+                        return;
+                    }
+                    
+                    if (exportSize > 16384) {
+                        if(!confirm(`Warning: An export size of ${exportSize}x${exportSize} may exceed your browser's memory limits. Proceed anyway?`)) return;
+                    }
+                } else {
+                    exportSize = parseInt(exportVal.split("_")[1]);
+                }
+
+                const scale = exportSize / this.sequenceLength;
+                const tempZoomLevel = Math.log2(scale);
+                this.setStatus(`Streaming & Rendering ${exportSize}x${exportSize} Image...`);
+                
+                try {
+                    const mode = document.getElementById('renderModeSelect').value;
+                    const offCanvas = document.createElement('canvas'); offCanvas.width = exportSize; offCanvas.height = exportSize;
+                    const offCtx = offCanvas.getContext('2d', { alpha: false });
+                    const imgData = offCtx.createImageData(exportSize, exportSize);
+                    
+                    if (mode === 'density') {
+                        const contrast = parseFloat(document.getElementById('contrastSlider').value);
+                        const rowDist = await this.fetchDensityRange(0, tempZoomLevel, exportSize);
+                        const colDist = await this.fetchDensityRange(0, tempZoomLevel, exportSize);
+                        this.renderDensityPixels(imgData, exportSize, exportSize, rowDist, colDist, contrast);
+                    } else {
+                        const rowVals = await this.fetchAliasedRange(0, tempZoomLevel, exportSize);
+                        const colVals = await this.fetchAliasedRange(0, tempZoomLevel, exportSize);
+                        this.renderAliasedPixels(imgData, exportSize, exportSize, rowVals, colVals, true);
+                    }
+                    
+                    offCtx.putImageData(imgData, 0, 0);
+                    
+                    this.setStatus("Saving image file...");
+                    this.triggerDownload(offCanvas, `matrix_export_${exportSize}x${exportSize}.png`);
+                } catch (err) { this.setStatus("Export failed. Memory limit likely exceeded."); console.error("Export Error:", err); }
+            },
+
+            triggerDownload(canvasEl, filename) {
+                canvasEl.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+                    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                    this.setStatus("Export complete.");
+                }, 'image/png');
+            },
+
+            // --- BOOKMARK SYSTEM METHODS ---
+            loadBookmarksLocal() {
+                this.bookmarks = [];
+                if (!this.rawFile) return;
+                const saved = localStorage.getItem('matrix_bookmarks_' + this.rawFile.name);
+                if (saved) {
+                    try { this.bookmarks = JSON.parse(saved); } catch(e) { console.error("Failed to parse local bookmarks"); }
+                }
+                this.renderBookmarksUI();
+            },
+
+            saveBookmarksLocal() {
+                if (!this.rawFile) return;
+                localStorage.setItem('matrix_bookmarks_' + this.rawFile.name, JSON.stringify(this.bookmarks));
+            },
+
+            addBookmark() {
+                if (!this.rawFile || this.sequenceLength === 0) return alert("Please load a data file first.");
+                const nameInput = document.getElementById('bookmarkNameInput');
+                let name = nameInput.value.trim();
+                
+                if (!name) name = `Coord: ${Math.floor(this.panOffsetX)}, ${Math.floor(this.panOffsetY)}`;
+                
+                this.bookmarks.push({ name: name, x: this.panOffsetX, y: this.panOffsetY, zoom: this.zoomLevel });
+                nameInput.value = '';
+                this.saveBookmarksLocal();
+                this.renderBookmarksUI();
+            },
+
+            gotoBookmark(idx) {
+                const bm = this.bookmarks[idx];
+                if (!bm) return;
+                this.zoomLevel = bm.zoom;
+                this.panOffsetX = bm.x;
+                this.panOffsetY = bm.y;
+                this.updateUI();
+                this.triggerRender();
+            },
+
+            deleteBookmark(idx) {
+                this.bookmarks.splice(idx, 1);
+                this.saveBookmarksLocal();
+                this.renderBookmarksUI();
+            },
+
+            renderBookmarksUI() {
+                const list = document.getElementById('bookmarkList');
+                list.innerHTML = '';
+                
+                if (this.bookmarks.length === 0) {
+                    list.innerHTML = '<span style="font-size:0.8rem;color:var(--text-secondary);">No bookmarks saved.</span>';
+                    return;
+                }
+                
+                this.bookmarks.forEach((bm, i) => {
+                    const div = document.createElement('div');
+                    div.style = "display: flex; justify-content: space-between; align-items: center; padding: 4px; background: #f4f7fa; border: 1px solid var(--border-color); border-radius: 4px;";
+                    
+                    const btn = document.createElement('button');
+                    btn.textContent = bm.name;
+                    btn.title = `X: ${Math.floor(bm.x)}, Y: ${Math.floor(bm.y)}`;
+                    btn.style = "background: none; border: none; cursor: pointer; text-align: left; flex-grow: 1; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-weight: 500;";
+                    btn.onclick = () => this.gotoBookmark(i);
+                    
+                    const delBtn = document.createElement('button');
+                    delBtn.innerHTML = '&#10005;'; // X icon
+                    delBtn.style = "background: none; border: none; color: #e53e3e; border-radius: 4px; cursor: pointer; padding: 2px 6px; margin-left: 4px; font-weight: bold; font-size: 0.8rem;";
+                    delBtn.onclick = () => this.deleteBookmark(i);
+
+                    div.appendChild(btn);
+                    div.appendChild(delBtn);
+                    list.appendChild(div);
+                });
+            },
+
+            exportBookmarks() {
+                if (!this.rawFile || this.bookmarks.length === 0) return alert("No bookmarks available to export.");
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.bookmarks, null, 2));
+                
+                let baseName = this.rawFile.name;
+                const dotIdx = baseName.lastIndexOf('.');
+                if (dotIdx > 0) baseName = baseName.substring(0, dotIdx);
+                
+                const a = document.createElement('a');
+                a.href = dataStr;
+                a.download = `${baseName}_bookmarks.json`;
+                document.body.appendChild(a); 
+                a.click(); 
+                a.remove();
+            },
+
+            importBookmarks(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const parsed = JSON.parse(e.target.result);
+                        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].hasOwnProperty('x')) {
+                            this.bookmarks = parsed;
+                            this.saveBookmarksLocal();
+                            this.renderBookmarksUI();
+                            this.setStatus(`Loaded ${parsed.length} bookmarks.`);
+                        } else {
+                            alert("This JSON file doesn't seem to contain valid coordinate data.");
+                        }
+                    } catch(err) {
+                        alert("Failed to parse the bookmark file.");
+                    }
+                };
+                reader.readAsText(file);
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => App.init());
+    </script>
+</body>
+</html>
