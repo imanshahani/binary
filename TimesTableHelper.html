@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MathQuest: Adaptive Times Tables</title>
+<style>
+  :root {
+    --bg: #f3f6fc;
+    --card-bg: #ffffff;
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --success: #10b981;
+    --error: #ef4444;
+    --warning: #f59e0b;
+    --purple: #8b5cf6;
+    --text-main: #1f2937;
+    --text-muted: #6b7280;
+    --border: #e5e7eb;
+    --radius: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  body { background: var(--bg); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px; }
+  .container { width: 100%; max-width: 820px; display: flex; flex-direction: column; gap: 16px; }
+
+  header { background: var(--card-bg); padding: 16px 22px; border-radius: var(--radius); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+  .logo { font-weight: 900; font-size: 1.3rem; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+  .stats-bar { display: flex; gap: 12px; font-weight: 700; font-size: 0.9rem; }
+  .stat-pill { background: #eef2ff; color: var(--primary); padding: 6px 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; }
+
+  .nav-tabs { display: flex; gap: 6px; background: #e0e7ff; padding: 4px; border-radius: 12px; }
+  .nav-tab { flex: 1; border: none; background: transparent; padding: 10px 6px; font-weight: 700; color: var(--primary); border-radius: 8px; cursor: pointer; transition: 0.2s ease; font-size: 0.9rem; text-align: center; }
+  .nav-tab.active { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+
+  .panel { display: none; background: var(--card-bg); border-radius: var(--radius); padding: 24px; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
+  .panel.active { display: block; }
+
+  /* Arena Layout */
+  .game-layout { display: flex; flex-direction: column; align-items: center; gap: 16px; min-height: 480px; justify-content: center; }
+  .scaffold-tracker { display: flex; gap: 6px; align-items: center; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); background: #f9fafb; padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); }
+  .scaffold-step { width: 10px; height: 10px; border-radius: 50%; background: #d1d5db; transition: background 0.3s; }
+  .scaffold-step.completed { background: var(--success); }
+  .scaffold-step.current { background: var(--primary); transform: scale(1.25); }
+
+  .card-problem { font-size: 3.8rem; font-weight: 900; letter-spacing: 2px; color: var(--text-main); line-height: 1.1; }
+  .latency-indicator { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); height: 18px; }
+
+  /* Answer Modes */
+  .interaction-zone { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; min-height: 240px; justify-content: center; }
+
+  /* Multiple Choice Grids */
+  .choice-grid { display: grid; gap: 10px; width: 100%; }
+  .grid-1 { grid-template-columns: 1fr; max-width: 200px; margin: 0 auto; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-9 { grid-template-columns: repeat(3, 1fr); }
+  .grid-16 { grid-template-columns: repeat(4, 1fr); }
+
+  .choice-btn { background: #f8fafc; border: 2px solid var(--border); border-radius: 12px; padding: 16px 8px; font-size: 1.35rem; font-weight: 800; color: var(--text-main); cursor: pointer; transition: 0.15s; text-align: center; }
+  .choice-btn:hover { border-color: var(--primary); background: #eef2ff; }
+  .choice-btn:active { transform: scale(0.96); }
+  .grid-16 .choice-btn { font-size: 1.05rem; padding: 10px 4px; border-radius: 8px; }
+  .prime-intro { background: #eef2ff; border-color: var(--primary); color: var(--primary); font-size: 2rem; padding: 20px; animation: pulse 1.5s infinite; }
+
+  /* Manual Keypad */
+  .keypad-wrapper { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 290px; }
+  .input-display { font-size: 2.2rem; font-weight: 800; min-height: 48px; width: 100%; text-align: center; border-bottom: 3px solid var(--primary); color: var(--primary); }
+  .input-display.placeholder { color: #cbd5e1; }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+  .key-btn { font-size: 1.3rem; font-weight: 700; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: #f9fafb; color: var(--text-main); cursor: pointer; }
+  .key-btn:active { transform: scale(0.95); background: #e5e7eb; }
+  .key-btn.action { background: #e0e7ff; color: var(--primary); }
+  .key-btn.submit { background: var(--primary); color: white; grid-column: span 3; padding: 12px; }
+
+  /* Breakdown & Mental Strategy Box */
+  .hint-container { width: 100%; max-width: 500px; background: #fffbeb; border: 2px solid #fef3c7; border-radius: 14px; padding: 16px; margin-top: 12px; display: none; text-align: center; animation: fadeIn 0.3s ease; }
+  .hint-container.active { display: block; }
+  .hint-strategy { font-size: 0.95rem; font-weight: 700; color: #92400e; margin-bottom: 6px; }
+  .hint-dots { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 10px; max-width: 320px; margin-left: auto; margin-right: auto; }
+  .hint-dot { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; }
+
+  /* Boss Rush Mode */
+  .boss-arena { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+  .boss-avatar { font-size: 4.5rem; animation: float 2s infinite ease-in-out; }
+  .boss-hp-bar { width: 100%; max-width: 450px; height: 18px; background: #fee2e2; border-radius: 10px; overflow: hidden; border: 2px solid #fca5a5; position: relative; }
+  .boss-hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ef4444, #f87171); transition: width 0.2s; }
+  .timer-banner { font-size: 1.5rem; font-weight: 900; color: #dc2626; }
+
+  /* Mastery Heatmap */
+  .heatmap-wrapper { overflow-x: auto; padding-bottom: 8px; }
+  .heatmap-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 4px; min-width: 500px; }
+  .grid-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; border-radius: 6px; cursor: pointer; position: relative; }
+  .grid-header { background: #eef2ff; color: var(--primary); }
+  .cell-stage-0 { background: #f1f5f9; color: #94a3b8; }
+  .cell-stage-1 { background: #e0e7ff; color: #4338ca; }
+  .cell-stage-2 { background: #c7d2fe; color: #3730a3; }
+  .cell-stage-3 { background: #a5b4fc; color: #312e81; }
+  .cell-stage-4 { background: #fef08a; color: #854d0e; }
+  .cell-stage-5 { background: #bbf7d0; color: #166534; }
+  .cell-trouble { background: #fee2e2 !important; color: #991b1b !important; border: 1.5px solid #ef4444; }
+
+  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+  .shake { animation: shake 0.35s ease; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="logo">⚡ MathQuest Pro</div>
+    <div class="stats-bar">
+      <div class="stat-pill">🔥 <span id="streak-counter">0</span> Streak</div>
+      <div class="stat-pill">⭐ <span id="stars-counter">0</span> Stars</div>
+    </div>
+  </header>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('arena')">🎯 Practice Arena</button>
+    <button class="nav-tab" onclick="switchTab('boss')">🐉 Boss Rush (60s)</button>
+    <button class="nav-tab" onclick="switchTab('matrix')">📊 Mastery Matrix</button>
+  </div>
+
+  <!-- Practice Arena Panel -->
+  <div id="panel-arena" class="panel active">
+    <div class="game-layout">
+      
+      <div class="scaffold-tracker" id="scaffold-display" title="Learning Stage">
+        <span>Scaffold Level:</span>
+        <div class="scaffold-step" id="dot-0" title="Stage 0: 1 Choice"></div>
+        <div class="scaffold-step" id="dot-1" title="Stage 1: 2 Choices"></div>
+        <div class="scaffold-step" id="dot-2" title="Stage 2: 4 Choices (2x2)"></div>
+        <div class="scaffold-step" id="dot-3" title="Stage 3: 9 Choices (3x3)"></div>
+        <div class="scaffold-step" id="dot-4" title="Stage 4: 16 Choices (4x4)"></div>
+        <div class="scaffold-step" id="dot-5" title="Stage 5: Manual Entry"></div>
+      </div>
+
+      <div class="card-problem" id="problem-text">2 × 3</div>
+      <div class="latency-indicator" id="latency-text"></div>
+
+      <!-- Interaction Zone -->
+      <div class="interaction-zone" id="interaction-zone"></div>
+
+      <!-- Mental Anchor & Visual Hint Box -->
+      <div class="hint-container" id="hint-box">
+        <div class="hint-strategy" id="hint-strategy"></div>
+        <div id="hint-math-desc" style="font-size:0.85rem; color:#6b7280; margin-bottom:6px;"></div>
+        <div class="hint-dots" id="hint-dots"></div>
+        <button onclick="dismissHintAndContinue()" style="margin-top:12px; padding:6px 16px; border:none; background:#d97706; color:#fff; border-radius:6px; font-weight:700; cursor:pointer;">Got It! Keep Going →</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Boss Rush Mode Panel -->
+  <div id="panel-boss" class="panel">
+    <div class="boss-arena">
+      <div class="timer-banner" id="boss-timer">⏳ 60s</div>
+      <div class="boss-avatar" id="boss-icon">👾</div>
+      <h3 id="boss-name" style="font-weight:800;">The Number Golem</h3>
+      
+      <div class="boss-hp-bar">
+        <div class="boss-hp-fill" id="boss-hp-fill"></div>
+      </div>
+      <div style="font-size:0.85rem; font-weight:700; color:var(--text-muted);" id="boss-hp-text">1000 / 1000 HP</div>
+
+      <div id="boss-game-controls" style="margin-top:12px; width:100%; display:flex; flex-direction:column; align-items:center;">
+        <button id="boss-start-btn" onclick="startBossRush()" style="padding:14px 28px; background:var(--primary); color:#fff; font-size:1.2rem; font-weight:800; border:none; border-radius:12px; cursor:pointer;">⚔️ Start Battle</button>
+        
+        <div id="boss-active-zone" style="display:none; width:100%; max-width:400px; margin-top:14px;">
+          <div style="font-size:2.8rem; font-weight:900; margin-bottom:12px;" id="boss-problem">7 × 8</div>
+          <div class="choice-grid grid-4" id="boss-choice-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mastery Matrix Panel -->
+  <div id="panel-matrix" class="panel">
+    <div class="heatmap-wrapper">
+      <div class="heatmap-grid" id="heatmap-grid"></div>
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:16px; font-size:0.75rem; font-weight:700;">
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; border-radius:3px;" class="cell-stage-0"></div> 1 Choice</div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; border-radius:3px;" class="cell-stage-1"></div> 2 Choices</div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; border-radius:3px;" class="cell-stage-2"></div> 4 Choices (2×2)</div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; border-radius:3px;" class="cell-stage-3"></div> 9 Choices (3×3)</div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; border-radius:3px;" class="cell-stage-4"></div> 16 Choices (4×4)</div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; border-radius:3px;" class="cell-stage-5"></div> Mastered (Manual Keypad)</div>
+      <div style="display:flex; align-items:center; gap:4px;"><div style="width:12px; height:12px; border-radius:3px;" class="cell-trouble"></div> Needs Practice</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Web Audio Synthesizer Engine
+  let audioCtx = null;
+  function getAudioContext() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  function playTone(freq, type, duration, delay = 0) {
+    try {
+      const ctx = getAudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + duration);
+    } catch(e) {}
+  }
+
+  function soundCorrect(currentStreak) {
+    const base = 440 * Math.pow(1.05, Math.min(currentStreak, 15));
+    playTone(base, 'triangle', 0.12, 0);
+    playTone(base * 1.25, 'triangle', 0.18, 0.08);
+  }
+
+  function soundError() {
+    playTone(180, 'sawtooth', 0.22, 0);
+    playTone(130, 'sawtooth', 0.28, 0.1);
+  }
+
+  function soundLevelUp() {
+    playTone(523.25, 'sine', 0.12, 0);
+    playTone(659.25, 'sine', 0.12, 0.09);
+    playTone(783.99, 'sine', 0.22, 0.18);
+  }
+
+  function soundHit() {
+    playTone(220, 'square', 0.08, 0);
+  }
+
+  // Spaced Repetition & Scaffolding Data Store
+  let factStats = JSON.parse(localStorage.getItem('mq_fact_stats') || '{}');
+  let totalStars = parseInt(localStorage.getItem('mq_stars') || '0', 10);
+  let streak = 0;
+  let currentProblem = null;
+  let enteredKeypad = "";
+  let questionStartTime = 0;
+  let priorityQueue = [];
+
+  function getFact(a, b) {
+    const key = `${a}x${b}`;
+    if (!factStats[key]) {
+      factStats[key] = {
+        stage: 0,
+        correct: 0,
+        incorrect: 0,
+        weight: 2.0,
+        avgLatencyMs: 0
+      };
+    }
+    return factStats[key];
+  }
+
+  function saveState() {
+    localStorage.setItem('mq_fact_stats', JSON.stringify(factStats));
+    localStorage.setItem('mq_stars', totalStars.toString());
+  }
+
+  // Mental Math Anchor Strategies
+  function getMentalStrategy(a, b) {
+    if (a === 1 || b === 1) return { rule: "Identity Rule", tip: "Any number multiplied by 1 stays unchanged." };
+    if (a === 2 || b === 2) return { rule: "Double Up", tip: `Double ${a === 2 ? b : a} by adding it to itself.` };
+    if (a === 4 || b === 4) {
+      const other = a === 4 ? b : a;
+      return { rule: "Double-Double", tip: `Double ${other} (${other * 2}), then double that result (${other * 4})!` };
+    }
+    if (a === 5 || b === 5) return { rule: "The Half-Ten Trick", tip: `Count by 5s or calculate (10 × ${a === 5 ? b : a}) ÷ 2.` };
+    if (a === 9 || b === 9) {
+      const other = a === 9 ? b : a;
+      return { rule: "Ten-Minus-One Anchor", tip: `Think (10 × ${other}) - ${other} = ${10 * other} - ${other} = ${9 * other}.` };
+    }
+    if (a === 6 || b === 6) {
+      const other = a === 6 ? b : a;
+      return { rule: "Five-Plus-One Anchor", tip: `Think (5 × ${other}) + ${other} = ${5 * other} + ${other} = ${6 * other}.` };
+    }
+    if (a === 7 || b === 7) {
+      const other = a === 7 ? b : a;
+      return { rule: "Split into 5 and 2", tip: `Think (5 × ${other}) + (2 × ${other}) = ${5 * other} + ${2 * other} = ${7 * other}.` };
+    }
+    if (a === 8 || b === 8) {
+      const other = a === 8 ? b : a;
+      return { rule: "Triple Double or 10-Minus-2", tip: `Think (10 × ${other}) - (2 × ${other}) = ${10 * other} - ${2 * other} = ${8 * other}.` };
+    }
+    if (a === 11 || b === 11) return { rule: "Twin Digit Pattern", tip: `For single digits, write the number twice: 11 × ${a === 11 ? b : a} = ${(a === 11 ? b : a) * 11}.` };
+    if (a === 12 || b === 12) {
+      const other = a === 12 ? b : a;
+      return { rule: "Ten-Plus-Two Anchor", tip: `Think (10 × ${other}) + (2 × ${other}) = ${10 * other} + ${2 * other} = ${12 * other}.` };
+    }
+    return { rule: "Grouping Strategy", tip: `Visualize ${a} equal groups of ${b}.` };
+  }
+
+  function nextArenaProblem() {
+    enteredKeypad = "";
+    document.getElementById('hint-box').classList.remove('active');
+    document.getElementById('latency-text').innerText = "";
+
+    let pair = null;
+    if (priorityQueue.length > 0) {
+      pair = priorityQueue.shift();
+    } else {
+      let pool = [];
+      for (let a = 1; a <= 12; a++) {
+        for (let b = 1; b <= 12; b++) {
+          const stats = getFact(a, b);
+          pool.push({ a, b, weight: stats.weight + (stats.incorrect * 2.5) });
+        }
+      }
+      const totalW = pool.reduce((s, x) => s + x.weight, 0);
+      let rand = Math.random() * totalW;
+      for (let item of pool) {
+        if (rand < item.weight) {
+          pair = { a: item.a, b: item.b };
+          break;
+        }
+        rand -= item.weight;
+      }
+      if (!pair) pair = pool[0];
+    }
+
+    const stats = getFact(pair.a, pair.b);
+    currentProblem = {
+      a: pair.a,
+      b: pair.b,
+      ans: pair.a * pair.b,
+      stage: stats.stage
+    };
+
+    renderArenaProblem();
+    questionStartTime = performance.now();
+  }
+
+  function renderArenaProblem() {
+    document.getElementById('problem-text').innerText = `${currentProblem.a} × ${currentProblem.b}`;
+    
+    for (let s = 0; s <= 5; s++) {
+      const dot = document.getElementById(`dot-${s}`);
+      dot.className = 'scaffold-step';
+      if (s < currentProblem.stage) dot.classList.add('completed');
+      if (s === currentProblem.stage) dot.classList.add('current');
+    }
+
+    const zone = document.getElementById('interaction-zone');
+    zone.innerHTML = "";
+
+    const ans = currentProblem.ans;
+    const stage = currentProblem.stage;
+
+    if (stage === 0) {
+      // Stage 0: 1 choice - number only
+      const grid = document.createElement('div');
+      grid.className = "choice-grid grid-1";
+      const btn = document.createElement('button');
+      btn.className = "choice-btn prime-intro";
+      btn.innerText = ans;
+      btn.onclick = () => submitAnswer(ans);
+      grid.appendChild(btn);
+      zone.appendChild(grid);
+    } else if (stage >= 1 && stage <= 4) {
+      // Stages 1 to 4: Multiple choice grids (2, 4, 9, 16 choices)
+      const counts = [2, 4, 9, 16];
+      const gridCount = counts[stage - 1];
+      const gridClass = `grid-${gridCount}`;
+
+      const choices = generateDistractors(currentProblem.a, currentProblem.b, ans, gridCount);
+      const grid = document.createElement('div');
+      grid.className = `choice-grid ${gridClass}`;
+
+      choices.forEach(val => {
+        const btn = document.createElement('button');
+        btn.className = "choice-btn";
+        btn.innerText = val;
+        btn.onclick = () => submitAnswer(val);
+        grid.appendChild(btn);
+      });
+      zone.appendChild(grid);
+    } else {
+      // Stage 5: Manual Numeric Keypad
+      const wrap = document.createElement('div');
+      wrap.className = "keypad-wrapper";
+      wrap.innerHTML = `
+        <div class="input-display placeholder" id="manual-input-box">?</div>
+        <div class="keypad">
+          <button class="key-btn" onclick="pressKeypad('1')">1</button>
+          <button class="key-btn" onclick="pressKeypad('2')">2</button>
+          <button class="key-btn" onclick="pressKeypad('3')">3</button>
+          <button class="key-btn" onclick="pressKeypad('4')">4</button>
+          <button class="key-btn" onclick="pressKeypad('5')">5</button>
+          <button class="key-btn" onclick="pressKeypad('6')">6</button>
+          <button class="key-btn" onclick="pressKeypad('7')">7</button>
+          <button class="key-btn" onclick="pressKeypad('8')">8</button>
+          <button class="key-btn" onclick="pressKeypad('9')">9</button>
+          <button class="key-btn action" onclick="pressKeypad('clear')">C</button>
+          <button class="key-btn" onclick="pressKeypad('0')">0</button>
+          <button class="key-btn action" onclick="pressKeypad('back')">⌫</button>
+          <button class="key-btn submit" onclick="submitManualKeypad()">Submit</button>
+        </div>
+      `;
+      zone.appendChild(wrap);
+    }
+  }
+
+  function generateDistractors(a, b, ans, count) {
+    const set = new Set([ans]);
+    const candidates = [
+      (a + 1) * b, (a - 1) * b,
+      a * (b + 1), a * (b - 1),
+      ans + 2, ans - 2,
+      ans + 10, ans - 10,
+      ans + 4, ans - 4,
+      ans + 1, ans - 1
+    ];
+
+    for (let c of candidates) {
+      if (c > 0 && c <= 144) set.add(c);
+      if (set.size >= count) break;
+    }
+
+    let fallback = 1;
+    while (set.size < count) {
+      set.add(fallback * b);
+      fallback++;
+    }
+
+    return Array.from(set).sort(() => Math.random() - 0.5);
+  }
+
+  function pressKeypad(key) {
+    if (key === 'clear') enteredKeypad = "";
+    else if (key === 'back') enteredKeypad = enteredKeypad.slice(0, -1);
+    else if (enteredKeypad.length < 4) enteredKeypad += key;
+
+    const box = document.getElementById('manual-input-box');
+    if (box) {
+      if (enteredKeypad === "") {
+        box.innerText = "?";
+        box.classList.add('placeholder');
+      } else {
+        box.innerText = enteredKeypad;
+        box.classList.remove('placeholder');
+      }
+    }
+  }
+
+  function submitManualKeypad() {
+    if (!enteredKeypad) return;
+    submitAnswer(parseInt(enteredKeypad, 10));
+  }
+
+  function submitAnswer(chosenVal) {
+    const elapsedSeconds = (performance.now() - questionStartTime) / 1000;
+    const stats = getFact(currentProblem.a, currentProblem.b);
+
+    if (chosenVal === currentProblem.ans) {
+      streak++;
+      totalStars++;
+      soundCorrect(streak);
+
+      const latencyTag = elapsedSeconds < 2.0 ? "⚡ Instant Recall (<2s)!" : `🧠 Solved in ${elapsedSeconds.toFixed(1)}s`;
+      document.getElementById('latency-text').innerText = latencyTag;
+
+      stats.correct++;
+      stats.weight = Math.max(0.3, stats.weight - 0.4);
+
+      if (stats.stage < 5) {
+        stats.stage++;
+        soundLevelUp();
+      }
+
+      if (stats.stage < 4 && Math.random() < 0.5) {
+        priorityQueue.push({ a: currentProblem.b, b: currentProblem.a });
+      }
+
+      saveState();
+      updateHeaderStats();
+
+      const el = document.getElementById('problem-text');
+      el.style.color = "var(--success)";
+      setTimeout(() => {
+        el.style.color = "var(--text-main)";
+        nextArenaProblem();
+      }, 420);
+
+    } else {
+      streak = 0;
+      soundError();
+      stats.incorrect++;
+      stats.weight += 3.0;
+      
+      stats.stage = Math.max(0, stats.stage - 1);
+
+      priorityQueue.unshift({ a: currentProblem.a, b: currentProblem.b });
+      priorityQueue.push({ a: currentProblem.b, b: currentProblem.a });
+
+      saveState();
+      updateHeaderStats();
+
+      const panel = document.getElementById('panel-arena');
+      panel.classList.add('shake');
+      setTimeout(() => panel.classList.remove('shake'), 350);
+
+      showMentalHint();
+    }
+  }
+
+  function showMentalHint() {
+    const strategy = getMentalStrategy(currentProblem.a, currentProblem.b);
+    document.getElementById('hint-strategy').innerText = `💡 Strategy: ${strategy.rule}`;
+    document.getElementById('hint-math-desc').innerHTML = `<strong>${currentProblem.a} × ${currentProblem.b} = ${currentProblem.ans}</strong><br>${strategy.tip}`;
+
+    const dots = document.getElementById('hint-dots');
+    dots.innerHTML = "";
+    const dotCount = Math.min(currentProblem.ans, 72);
+    for (let i = 0; i < dotCount; i++) {
+      const d = document.createElement('div');
+      d.className = 'hint-dot';
+      dots.appendChild(d);
+    }
+
+    document.getElementById('hint-box').classList.add('active');
+  }
+
+  function dismissHintAndContinue() {
+    nextArenaProblem();
+  }
+
+  function updateHeaderStats() {
+    document.getElementById('streak-counter').innerText = streak;
+    document.getElementById('stars-counter').innerText = totalStars;
+  }
+
+  // Boss Rush Mode Logic
+  let bossTimer = null;
+  let bossTimeLeft = 60;
+  let bossHp = 1000;
+  const maxBossHp = 1000;
+  let bossCurrentProblem = null;
+
+  function startBossRush() {
+    getAudioContext();
+    bossTimeLeft = 60;
+    bossHp = maxBossHp;
+    updateBossHpDisplay();
+    document.getElementById('boss-start-btn').style.display = "none";
+    document.getElementById('boss-active-zone').style.display = "block";
+    document.getElementById('boss-timer').innerText = `⏳ ${bossTimeLeft}s`;
+
+    if (bossTimer) clearInterval(bossTimer);
+    bossTimer = setInterval(() => {
+      bossTimeLeft--;
+      document.getElementById('boss-timer').innerText = `⏳ ${bossTimeLeft}s`;
+      if (bossTimeLeft <= 0) endBossRush(false);
+    }, 1000);
+
+    nextBossProblem();
+  }
+
+  function nextBossProblem() {
+    const a = Math.floor(Math.random() * 12) + 1;
+    const b = Math.floor(Math.random() * 12) + 1;
+    const ans = a * b;
+    bossCurrentProblem = { a, b, ans };
+
+    document.getElementById('boss-problem').innerText = `${a} × ${b}`;
+    const choices = generateDistractors(a, b, ans, 4);
+    const grid = document.getElementById('boss-choice-grid');
+    grid.innerHTML = "";
+
+    choices.forEach(val => {
+      const btn = document.createElement('button');
+      btn.className = "choice-btn";
+      btn.innerText = val;
+      btn.onclick = () => submitBossAnswer(val);
+      grid.appendChild(btn);
+    });
+  }
+
+  function submitBossAnswer(val) {
+    if (val === bossCurrentProblem.ans) {
+      soundHit();
+      const dmg = 85 + Math.floor(Math.random() * 30);
+      bossHp = Math.max(0, bossHp - dmg);
+      updateBossHpDisplay();
+
+      if (bossHp <= 0) {
+        endBossRush(true);
+      } else {
+        nextBossProblem();
+      }
+    } else {
+      soundError();
+    }
+  }
+
+  function updateBossHpDisplay() {
+    const pct = (bossHp / maxBossHp) * 100;
+    document.getElementById('boss-hp-fill').style.width = `${pct}%`;
+    document.getElementById('boss-hp-text').innerText = `${bossHp} / ${maxBossHp} HP`;
+  }
+
+  function endBossRush(victory) {
+    clearInterval(bossTimer);
+    document.getElementById('boss-active-zone').style.display = "none";
+    document.getElementById('boss-start-btn').style.display = "block";
+
+    if (victory) {
+      soundLevelUp();
+      alert("🏆 VICTORY! You defeated the Number Golem!");
+      totalStars += 25;
+      saveState();
+      updateHeaderStats();
+    } else {
+      alert("Time's up! Keep practicing and try again!");
+    }
+  }
+
+  // Mastery Heatmap Rendering
+  function renderHeatmap() {
+    const grid = document.getElementById('heatmap-grid');
+    grid.innerHTML = "";
+
+    const corner = document.createElement('div');
+    corner.className = 'grid-cell grid-header';
+    corner.innerText = '×';
+    grid.appendChild(corner);
+
+    for (let c = 1; c <= 12; c++) {
+      const h = document.createElement('div');
+      h.className = 'grid-cell grid-header';
+      h.innerText = c;
+      grid.appendChild(h);
+    }
+
+    for (let r = 1; r <= 12; r++) {
+      const rh = document.createElement('div');
+      rh.className = 'grid-cell grid-header';
+      rh.innerText = r;
+      grid.appendChild(rh);
+
+      for (let c = 1; c <= 12; c++) {
+        const cell = document.createElement('div');
+        const st = getFact(r, c);
+        
+        let cssClass = `cell-stage-${st.stage}`;
+        if (st.incorrect > 0 && st.incorrect >= st.correct) {
+          cssClass = "cell-trouble";
+        }
+
+        cell.className = `grid-cell ${cssClass}`;
+        cell.innerHTML = `<span>${r * c}</span><span style="font-size:0.6rem; opacity:0.75;">S${st.stage}</span>`;
+        cell.title = `${r} × ${c} = ${r * c}\nStage: ${st.stage}/5\nCorrect: ${st.correct} | Mistakes: ${st.incorrect}`;
+        
+        cell.onclick = () => {
+          priorityQueue.unshift({ a: r, b: c });
+          switchTab('arena');
+          document.querySelectorAll('.nav-tab')[0].classList.add('active');
+          nextArenaProblem();
+        };
+
+        grid.appendChild(cell);
+      }
+    }
+  }
+
+  function switchTab(tabId) {
+    getAudioContext();
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+
+    event.target.classList.add('active');
+    document.getElementById(`panel-${tabId}`).classList.add('active');
+
+    if (tabId === 'matrix') renderHeatmap();
+  }
+
+  // Physical Keyboard Listener
+  window.addEventListener('keydown', (e) => {
+    if (currentProblem && currentProblem.stage === 5) {
+      if (e.key >= '0' && e.key <= '9') pressKeypad(e.key);
+      else if (e.key === 'Backspace') pressKeypad('back');
+      else if (e.key === 'Escape') pressKeypad('clear');
+      else if (e.key === 'Enter') submitManualKeypad();
+    }
+  });
+
+  // Init
+  updateHeaderStats();
+  nextArenaProblem();
+</script>
+</body>
+</html>
